@@ -60,7 +60,6 @@ project "Ultimate-ASI-Loader-Win32"
    files { "source/x86.def" }
    files { "source/xlive/xliveless.h", "source/xlive/xliveless.cpp", "source/xlive/xliveless.rc"}
    files { "source/resources/*.rc" }
-   files { "external/d3d8to9/source/*.hpp", "external/d3d8to9/source/*.cpp" }
    files { "external/MemoryModule/*.h", "external/MemoryModule/*.c" }
    files { "external/ModuleList/*.hpp" }
 
@@ -68,9 +67,6 @@ project "Ultimate-ASI-Loader-Win32"
    if dxsdk then
       includedirs { dxsdk .. "/include" }
       libdirs { dxsdk .. "/lib/x86" }
-   elseif os.isdir("external/minidx9") then
-      includedirs { "external/minidx9/Include" }
-      libdirs { "external/minidx9/Lib/x86" }
    else
       includedirs { "C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)/include" }
       libdirs { "C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)/lib/x86" }
@@ -83,7 +79,7 @@ project "Ultimate-ASI-Loader-Win32"
       symbols "On"
 
    filter "configurations:Release"
-      defines { "NDEBUG", "D3D8TO9NOLOG" }
+      defines { "NDEBUG" }
       optimize "On"
       staticruntime "On"
       

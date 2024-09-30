@@ -6,7 +6,6 @@
 #include <FunctionHookMinHook.hpp>
 
 #if !X64
-#include <d3d8to9\source\d3d8to9.hpp>
 extern "C" Direct3D8* WINAPI Direct3DCreate8(UINT SDKVersion);
 #endif
 
@@ -482,18 +481,6 @@ void LoadOriginalLibrary()
             ddraw.LoadOriginalLibrary(LoadLib(szLocalPath));
         else
             ddraw.LoadOriginalLibrary(LoadLib(szSystemPath));
-    }
-    else if (iequals(szSelfName, L"d3d8.dll"))
-    {
-        szLocalPath += L"d3d8Hooked.dll";
-        if (std::filesystem::exists(szLocalPath))
-            d3d8.LoadOriginalLibrary(LoadLib(szLocalPath));
-        else
-        {
-            d3d8.LoadOriginalLibrary(LoadLib(szSystemPath));
-            if (GetPrivateProfileIntW(L"globalsets", L"used3d8to9", FALSE, iniPaths))
-                d3d8.Direct3DCreate8 = (FARPROC)Direct3DCreate8;
-        }
     }
     else if (iequals(szSelfName, L"msacm32.dll"))
     {
