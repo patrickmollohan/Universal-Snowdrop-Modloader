@@ -45,71 +45,33 @@ jobs:
 
     - name: Build
       run: |
-        msbuild -m build/Ultimate-ASI-Loader-x64.sln /property:Configuration=Release /property:Platform=x64
-        msbuild -m build/Ultimate-ASI-Loader-Win32.sln /property:Configuration=Release /property:Platform=Win32
+        msbuild -m build/Ultimate-SWO-ModLoader.sln /property:Configuration=Release /property:Platform=x64
 
-    - name: Pack binaries
-      run: |
-        ./release.bat
-        ./release.ps1
-
-    - name: Upload artifact (Win32)
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Ultimate-ASI-Loader-Win32
-        path: dist/Win32/dll/*
-
-    - name: Upload artifact (x64)
-      uses: actions/upload-artifact@v4
-      with:
-        name: Ultimate-ASI-Loader-x64
-        path: dist/x64/dll/*
+        name: Ultimate-SWO-ModLoader
+        path: dist/dll/*
 
     - name: Upload Release (Main)
       if: |
         github.ref_name == 'master' &&
         github.event_name == 'push' &&
-        github.repository == 'ThirteenAG/Ultimate-ASI-Loader'
+        github.repository == 'patrickmollohan/Ultimate-SWO-ModLoader'
       uses: ncipollo/release-action@main
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         allowUpdates: false
-        name: Ultimate ASI Loader v${{ steps.versioning.outputs.version }}
+        name: Ultimate Star Wars Outlaws ModLoader v${{ steps.versioning.outputs.version }}
         bodyFile: "release.md"
         tag: v${{ steps.versioning.outputs.version }}
-        artifacts: bin/Ultimate-ASI-Loader.zip, bin/Ultimate-ASI-Loader_x64.zip
+        artifacts: bin/Ultimate-SWO-ModLoader.zip
 
-    - name: Get release info (Win32)
+    - name: Get release info
       if: |
         github.ref_name == 'master' &&
         github.event_name == 'push' &&
-        github.repository == 'ThirteenAG/Ultimate-ASI-Loader'
-      id: release_info_x86
-      uses: cardinalby/git-get-release-action@master
-      env:
-       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag: Win32-latest
-
-    - name: Upload Release (Win32)
-      if: |
-        github.ref_name == 'master' &&
-        github.event_name == 'push' &&
-        github.repository == 'ThirteenAG/Ultimate-ASI-Loader'
-      uses: ncipollo/release-action@main
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        allowUpdates: true
-        name: ${{ steps.release_info_x86.outputs.name }}
-        body: ${{ steps.release_info_x86.outputs.body }}
-        tag: ${{ steps.release_info_x86.outputs.tag_name }}
-        artifacts: dist/Win32/zip/*.zip
-
-    - name: Get release info (Win64)
-      if: |
-        github.ref_name == 'master' &&
-        github.event_name == 'push' &&
-        github.repository == 'ThirteenAG/Ultimate-ASI-Loader'
+        github.repository == 'patrickmollohan/Ultimate-SWO-ModLoader'
       id: release_info_x64
       uses: cardinalby/git-get-release-action@master
       env:
@@ -117,11 +79,11 @@ jobs:
       with:
         tag: x64-latest
 
-    - name: Upload Release (Win64)
+    - name: Upload Release
       if: |
         github.ref_name == 'master' &&
         github.event_name == 'push' &&
-        github.repository == 'ThirteenAG/Ultimate-ASI-Loader'
+        github.repository == 'patrickmollohan/Ultimate-SWO-ModLoader'
       uses: ncipollo/release-action@main
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -129,4 +91,4 @@ jobs:
         name: ${{ steps.release_info_x64.outputs.name }}
         body: ${{ steps.release_info_x64.outputs.body }}
         tag: ${{ steps.release_info_x64.outputs.tag_name }}
-        artifacts: dist/x64/zip/*.zip
+        artifacts: dist/zip/*.zip
