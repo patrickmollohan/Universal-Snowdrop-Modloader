@@ -13,6 +13,7 @@ workspace "Ultimate-SWO-ModLoader"
    exceptionhandling ("SEH")
    
    defines { "rsc_CompanyName=\"Patrick Mollohan\"" }
+   defines { "rsc_LegalCopyright=\"MIT License\""}
    defines { "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"%{prj.name}.dll\"" }
    defines { "rsc_FileDescription=\"Ultimate Star Wars Outlaws ModLoader\"" }
    defines { "rsc_UpdateUrl=\"https://github.com/patrickmollohan/Ultimate-SWO-ModLoader\"" }
