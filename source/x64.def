@@ -1,6 +1,6 @@
 LIBRARY "USWOML"
 EXPORTS
-IsUltimateSWOModLoader = IsUltimateSWOModLoader
+IsUltimateASILoader = IsUltimateASILoader
 GetOverloadedFilePathA = GetOverloadedFilePathA
 GetOverloadedFilePathW = GetOverloadedFilePathW
 GetMemoryModule = GetMemoryModule

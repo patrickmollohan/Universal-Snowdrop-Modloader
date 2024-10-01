@@ -62,7 +62,7 @@ void _DebugSetMute() {
     shared.DebugSetMute();
 }
 
-bool WINAPI IsUltimateSWOModLoader() {
+bool WINAPI IsUltimateASILoader() {
     return true;
 }
 
@@ -883,7 +883,7 @@ HRESULT WINAPI CustomCoCreateInstance(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWOR
 
     hDll = ::LoadLibrary(L"dinput8.dll");
 
-    if (hDll == NULL || GetProcAddress(hDll, "IsUltimateSWOModLoader") != NULL)
+    if (hDll == NULL || GetProcAddress(hDll, "IsUltimateASILoader") != NULL)
         return ::CoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
 
     typedef HRESULT(__stdcall *pDllGetClassObject)(IN REFCLSID rclsid, IN REFIID riid, OUT LPVOID FAR* ppv);
@@ -1565,12 +1565,12 @@ void Init() {
             ModuleList dlls;
             dlls.Enumerate(ModuleList::SearchLocation::LocalOnly);
 
-            auto uswoml = std::find_if(dlls.m_moduleList.begin(), dlls.m_moduleList.end(), [](auto const& it) {
+            auto ual = std::find_if(dlls.m_moduleList.begin(), dlls.m_moduleList.end(), [](auto const& it) {
                 return std::get<HMODULE>(it) == hm;
             });
 
-            auto sim = std::find_if(dlls.m_moduleList.rbegin(), dlls.m_moduleList.rend(), [&uswoml](auto const& it) {
-                auto str1 = std::get<std::wstring>(*uswoml);
+            auto sim = std::find_if(dlls.m_moduleList.rbegin(), dlls.m_moduleList.rend(), [&ual](auto const& it) {
+                auto str1 = std::get<std::wstring>(*ual);
                 auto str2 = std::get<std::wstring>(it);
                 std::transform(str1.begin(), str1.end(), str1.begin(), [](wchar_t c) { return ::towlower(c); });
                 std::transform(str2.begin(), str2.end(), str2.begin(), [](wchar_t c) { return ::towlower(c); });
@@ -1581,11 +1581,11 @@ void Init() {
                 return (str2 != str1) && (str2.find(str1) != std::wstring::npos);
             });
 
-            if (uswoml != dlls.m_moduleList.begin()) {
+            if (ual != dlls.m_moduleList.begin()) {
                 if (sim != dlls.m_moduleList.rend()) {
                     m = std::get<HMODULE>(*sim);
                 } else {
-                    m = std::get<HMODULE>(*std::prev(uswoml, 1));
+                    m = std::get<HMODULE>(*std::prev(ual, 1));
                 }
             }
         }
