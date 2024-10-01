@@ -1,5 +1,7 @@
 # Ultimate Star Wars Outlaws ModLoader
 
+![image](https://store.ubisoft.com/on/demandware.static/-/Sites-masterCatalog/default/dw23f30fd8/images/pdpbanner/645ba713a9ce0448bffa4c12-bg.jpg)
+
 ## DESCRIPTION
 
 This is a DLL file based on Ultimate ASI Loader that adds mod support and ASI plugin loading functionality.
