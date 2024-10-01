@@ -1,4 +1,4 @@
-LIBRARY "USWOML"
+LIBRARY "UAL"
 EXPORTS
 IsUltimateASILoader = IsUltimateASILoader
 GetOverloadedFilePathA = GetOverloadedFilePathA
