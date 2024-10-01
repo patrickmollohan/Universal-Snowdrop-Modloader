@@ -1,9 +1,9 @@
 [submodule "external/MemoryModule"]
-	path = external/MemoryModule
+	path = lib/MemoryModule
 	url = https://github.com/fancycode/MemoryModule
 [submodule "external/injector"]
-	path = external/injector
+	path = lib/injector
 	url = https://github.com/ThirteenAG/injector
 [submodule "external/detours"]
-	path = external/detours
+	path = lib/detours
 	url = https://github.com/patrickmollohan/detours
