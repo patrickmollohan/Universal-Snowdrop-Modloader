@@ -60,7 +60,7 @@ project "Ultimate-SWO-ModLoader"
    files { "src/asi_loader.hpp", "src/asi_loader.cpp" }
    files { "src/dllmain.cpp" }
    files { "src/dinput8.def" }
-   files { "src/resources/Versioninfo.rc" }
+   files { "src/res/Versioninfo.rc" }
    
    characterset ("UNICODE")
    
