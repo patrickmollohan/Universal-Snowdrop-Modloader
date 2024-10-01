@@ -49,7 +49,7 @@ project "Ultimate-SWO-ModLoader"
    targetname "dinput8"
    targetextension ".dll"
    
-   includedirs { "source" }
+   includedirs { "src" }
    includedirs { "external" }
 
    includedirs { "external/injector/minhook/include" }
@@ -57,10 +57,10 @@ project "Ultimate-SWO-ModLoader"
    includedirs { "external/injector/utility" }
    files { "external/injector/utility/FunctionHookMinHook.hpp", "external/injector/utility/FunctionHookMinHook.cpp" }
 
-   files { "source/asi_loader.hpp", "source/asi_loader.cpp" }
-   files { "source/dllmain.cpp" }
-   files { "source/dinput8.def" }
-   files { "source/resources/Versioninfo.rc" }
+   files { "src/asi_loader.hpp", "src/asi_loader.cpp" }
+   files { "src/dllmain.cpp" }
+   files { "src/dinput8.def" }
+   files { "src/resources/Versioninfo.rc" }
    
    characterset ("UNICODE")
    
