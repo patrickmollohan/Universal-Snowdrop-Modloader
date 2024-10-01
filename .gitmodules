@@ -4,3 +4,6 @@
 [submodule "external/injector"]
 	path = external/injector
 	url = https://github.com/ThirteenAG/injector
+[submodule "external/detours"]
+	path = external/detours
+	url = https://github.com/patrickmollohan/detours
