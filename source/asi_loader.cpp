@@ -250,7 +250,7 @@ std::wstring GetPrivateProfileStringW(LPCWSTR lpAppName, LPCWSTR lpKeyName, LPCW
     std::wstring ret(szDefault);
     ret.resize(MAX_PATH);
     for (const auto& file : fileNames) {
-        GetPrivateProfileStringW(lpAppName, lpKeyName, ret.data(), ret.data(), ret.size(), file.c_str());
+        GetPrivateProfileStringW(lpAppName, lpKeyName, ret.data(), ret.data(), (DWORD)ret.size(), file.c_str());
     }
     return ret.data();
 }
@@ -1473,7 +1473,7 @@ LONG WINAPI CustomUnhandledExceptionFilter(LPEXCEPTION_POINTERS ExceptionInfo) {
         auto Log = [ExceptionInfo, hFile](char* buffer, size_t size, bool reg, bool stack, bool trace) {
             if (LogException(buffer, size, (LPEXCEPTION_POINTERS)ExceptionInfo, reg, stack, trace)) {
                 DWORD NumberOfBytesWritten = 0;
-                WriteFile(hFile, buffer, strlen(buffer), &NumberOfBytesWritten, NULL);
+                WriteFile(hFile, buffer, (DWORD)strlen(buffer), &NumberOfBytesWritten, NULL);
             }
         };
 
