@@ -50,12 +50,12 @@ project "Ultimate-SWO-ModLoader"
    targetextension ".dll"
    
    includedirs { "src" }
-   includedirs { "external" }
+   includedirs { "lib" }
 
-   includedirs { "external/injector/minhook/include" }
-   files { "external/injector/minhook/include/*.h", "external/injector/minhook/src/**.h", "external/injector/minhook/src/**.c" }
-   includedirs { "external/injector/utility" }
-   files { "external/injector/utility/FunctionHookMinHook.hpp", "external/injector/utility/FunctionHookMinHook.cpp" }
+   includedirs { "lib/injector/minhook/include" }
+   files { "lib/injector/minhook/include/*.h", "lib/injector/minhook/src/**.h", "lib/injector/minhook/src/**.c" }
+   includedirs { "lib/injector/utility" }
+   files { "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp" }
 
    files { "src/asi_loader.hpp", "src/asi_loader.cpp" }
    files { "src/dllmain.cpp" }
