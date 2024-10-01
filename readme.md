@@ -16,6 +16,7 @@ After installing Ultimate SWO ModLoader, you may copy any modified game files re
 
 Since this modloader is based on Ultimate ASI Loader, you can put additional ASI files in the 'scripts' folder.
 
-## CrashDumps
+## CREDITS
 
-ASI loader is now capable of generating crash minidumps and crash logs. To use this feature, create a folder named `CrashDumps` in the folder with asi loader's dll. You can disable that via the `DisableCrashDumps=1` ini option.
+ThirteenAG - [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
+Nukem9 - [Detours](https://github.com/Nukem9/detours)
