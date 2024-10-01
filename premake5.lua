@@ -39,8 +39,6 @@ workspace "Ultimate-SWO-ModLoader"
    defines { "rsc_FileVersion_REVISION=" .. revision }
    defines { "rsc_FileVersion=\"" .. major .. "." .. minor .. "." .. build .. "\"" }
    defines { "rsc_ProductVersion=\"" .. major .. "." .. minor .. "." .. build .. "\"" }
-
-   defines { "X64" }
      
 project "Ultimate-SWO-ModLoader"
    kind "SharedLib"
