@@ -1,8 +1,5 @@
 #include "mod_loader.hpp"
 
-#pragma comment(linker, "/export:MiniDumpReadDumpStream=dbgcore_old.MiniDumpReadDumpStream")
-#pragma comment(linker, "/export:MiniDumpWriteDump=dbgcore_old.MiniDumpWriteDump")
-
 typedef bool(__fastcall* open_file_stream_proc)(__int64 stream, LPCSTR file_path, unsigned int flags);
 open_file_stream_proc old_open_file_stream = nullptr;
 typedef DWORD(WINAPI* GetFileAttributesWType)(LPCWSTR);
