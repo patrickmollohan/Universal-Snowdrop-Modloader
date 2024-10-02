@@ -23,3 +23,5 @@ Since this modloader is based on Ultimate ASI Loader, you can put additional ASI
 ThirteenAG - [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
 
 Microsoft - [Detours](https://github.com/Microsoft/Detours)
+
+DTZxPorter - [avatar-modloader](https://github.com/dtzxporter/avatar-modloader)
