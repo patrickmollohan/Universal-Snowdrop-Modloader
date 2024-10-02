@@ -55,6 +55,9 @@ project "Ultimate-SWO-ModLoader"
    includedirs { "lib/injector/utility" }
    files { "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp" }
 
+   libdirs { "lib/detours" }
+   links { "detours" }
+
    files { "src/asi_loader.hpp", "src/asi_loader.cpp" }
    files { "src/mod_loader.hpp", "src/mod_loader.cpp" }
    files { "src/dllmain.cpp" }
