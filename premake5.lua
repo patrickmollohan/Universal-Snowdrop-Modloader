@@ -1,8 +1,8 @@
 newoption {
     trigger     = "with-version",
     value       = "STRING",
-    description = "Current USWOML version",
-    default     = "7.0.0",
+    description = "Ultimate Star Wars Outlaws ModLoader version",
+    default     = "1.0.0",
 }
 
 workspace "Ultimate-SWO-ModLoader"
