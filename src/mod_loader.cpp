@@ -6,8 +6,6 @@ typedef DWORD(WINAPI* GetFileAttributesWType)(LPCWSTR);
 GetFileAttributesWType OriginalGetFileAttributesW = nullptr;
 uintptr_t old_getsystemtimeasfiletime = 0;
 
-const LPCSTR patterns[] = { "4C 8B DC 53 57 41 54 48 81 EC ? ? ? ? 41 8B D8" };
-
 BOOL file_exists(LPCSTR file_path) {
     DWORD dwAttrib = GetFileAttributesA(file_path);
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
