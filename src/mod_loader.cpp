@@ -44,20 +44,17 @@ void ModLoaderMain(HMODULE hModule, DWORD reason) {
             return;
         }
 
-        HMODULE hKernel32 = LoadLibraryA("kernel32.dll");
-        if (hKernel32) {
-            // Hook the OpenFileStream function
-            uintptr_t openFileStreamAddress = FindOpenFileStreamAddress();
-            if (openFileStreamAddress) {
-                oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
-                if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
-                    MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
-                    return;
-                }
+        // Hook the OpenFileStream function
+        uintptr_t openFileStreamAddress = FindOpenFileStreamAddress();
+        if (openFileStreamAddress) {
+            oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
+            if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
+                MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
+                return;
             }
-
-            // Enable the hooks
-            MH_EnableHook(MH_ALL_HOOKS);
         }
+
+        // Enable the hooks
+        MH_EnableHook(MH_ALL_HOOKS);
     }
 }
