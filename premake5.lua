@@ -59,7 +59,7 @@ project "Ultimate-SWO-ModLoader"
    files { "src/mod_loader.hpp", "src/mod_loader.cpp" }
    files { "src/dllmain.cpp" }
    files { "src/dinput8.def" }
-   files { "src/res/Versioninfo.rc" }
+   files { "src/Versioninfo.rc" }
    
    characterset ("UNICODE")
    
