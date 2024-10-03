@@ -1,11 +1,16 @@
 #pragma once
+
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <cstdio>
-#include "phook.h"
-#include "detours\detours.h"
 
-const LPCSTR patterns[] = { "4C 8B DC 53 57 41 54 48 81 EC ? ? ? ? 41 8B D8" };
+#include <Windows.h>
+#include <MinHook.h>
+#include "main_module.hpp"
+
+typedef bool(__fastcall* open_file_stream_proc)(__int64 stream, LPCSTR file_path, unsigned int flags);
+
+// Define the pattern and the corresponding mask to indicate wildcards
+const unsigned char pattern[] = { 0x4C, 0x8B, 0xDC, 0x53, 0x57, 0x41, 0x54, 0x48, 0x81, 0xEC, 0x00, 0x00, 0x00, 0x00, 0x41, 0x8B, 0xD8 };
+const unsigned char mask[]    = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF }; // 0x00 for wildcard
 
 void ModLoaderMain(HMODULE hModule, DWORD reason);

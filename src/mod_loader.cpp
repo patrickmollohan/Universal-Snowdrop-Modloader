@@ -1,61 +1,63 @@
 #include "mod_loader.hpp"
 
-typedef bool(__fastcall* open_file_stream_proc)(__int64 stream, LPCSTR file_path, unsigned int flags);
-open_file_stream_proc old_open_file_stream = nullptr;
-typedef DWORD(WINAPI* GetFileAttributesWType)(LPCWSTR);
-GetFileAttributesWType OriginalGetFileAttributesW = nullptr;
-uintptr_t old_getsystemtimeasfiletime = 0;
+open_file_stream_proc oldOpenFileStream = nullptr;
 
-BOOL file_exists(LPCSTR file_path) {
+BOOL FileExists(LPCSTR file_path) {
     DWORD dwAttrib = GetFileAttributesA(file_path);
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
-BOOL __fastcall hk_open_file_stream(uintptr_t stream, LPCSTR file_path, unsigned int flags) {
-    if (file_exists(file_path)) {
-        return old_open_file_stream(stream, file_path, flags | (1 << 0xA));
+BOOL __fastcall HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags) {
+    if (FileExists(file_path)) {
+        return oldOpenFileStream(stream, file_path, flags | (1 << 0xA));
     }
-    return old_open_file_stream(stream, file_path, flags);
+    return oldOpenFileStream(stream, file_path, flags);
 }
 
-DWORD WINAPI hk_getsystemtimeasfiletime(LPCWSTR lpSystemTimeAsFileTime) {
-    DetourTransactionBegin();
-    DetourUpdateThread(GetCurrentThread());
-    DetourDetach(&(PVOID&)OriginalGetFileAttributesW, hk_getsystemtimeasfiletime);
-    DetourTransactionCommit();
-    
-    MainModule Module;
-    uintptr_t Result = (uintptr_t)-1;
-    for (auto i = 0; i < ARRAYSIZE(patterns); i++) {
-        Result = FindPattern(patterns[i], Module.GetBaseAddress(), Module.GetCodeSize());
-        if (Result != (uintptr_t)-1) {
-            break;
+uintptr_t FindOpenFileStreamAddress() {
+    MainModule module;
+    uintptr_t baseAddress = module.GetBaseAddress();
+    size_t moduleSize = module.GetCodeSize();
+    size_t patternLength = sizeof(pattern);
+
+    for (size_t i = 0; i <= moduleSize - patternLength; i++) {
+        bool found = true;
+        for (size_t j = 0; j < patternLength; j++) {
+            // Check if the current byte is a wildcard or matches the pattern
+            if (mask[j] != 0x00 && *(reinterpret_cast<unsigned char*>(baseAddress + i + j)) != pattern[j]) {
+                found = false;
+                break;
+            }
+        }
+        if (found) {
+            return baseAddress + i; // Return the found address
         }
     }
-
-    if (Result == (uintptr_t)-1) {
-        MessageBoxA(GetActiveWindow(), "Failed to find required modloader functions! Mod support will not be available.", "Ultimate Star Wars Outlaws ModLoader", MB_OK | MB_ICONERROR);
-    } else {
-        DetourRestoreAfterWith();
-        DetourTransactionBegin();
-        DetourUpdateThread(GetCurrentThread());
-        old_open_file_stream = (open_file_stream_proc)(Result + Module.GetBaseAddress());
-        DetourAttach(&(PVOID&)old_open_file_stream, hk_open_file_stream);
-        DetourTransactionCommit();
-    }    
-
-    return GetFileAttributesW(lpSystemTimeAsFileTime);
+    return 0; // Return 0 if not found
 }
 
 void ModLoaderMain(HMODULE hModule, DWORD reason) {
     if (reason == DLL_PROCESS_ATTACH) {
+        // Initialize MinHook
+        if (MH_Initialize() != MH_OK) {
+            MessageBoxA(NULL, "Failed to initialise MinHook. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
+            return;
+        }
+
         HMODULE hKernel32 = LoadLibraryA("kernel32.dll");
         if (hKernel32) {
-            OriginalGetFileAttributesW = (GetFileAttributesWType)GetProcAddress(hKernel32, "GetFileAttributesW");
-            DetourTransactionBegin();
-            DetourUpdateThread(GetCurrentThread());
-            DetourAttach(&(PVOID&)OriginalGetFileAttributesW, hk_getsystemtimeasfiletime);
-            DetourTransactionCommit();
+            // Hook the OpenFileStream function
+            uintptr_t openFileStreamAddress = FindOpenFileStreamAddress();
+            if (openFileStreamAddress) {
+                oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
+                if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
+                    MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
+                    return;
+                }
+            }
+
+            // Enable the hooks
+            MH_EnableHook(MH_ALL_HOOKS);
         }
     }
 }
