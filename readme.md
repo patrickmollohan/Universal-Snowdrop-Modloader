@@ -8,7 +8,7 @@ This is a DLL file based on Ultimate ASI Loader that adds mod support and ASI pl
 
 ## INSTALLATION
 
-To install, copy [dinput8.dll](/releases/latest/download/dinput8.dll) into the root directory of the game (where "Outlaws.exe" is). This is usually C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games\Star Wars Outlaws
+To install, copy [dinput8.dll](https://github.com/patrickmollohan/Ultimate-SWO-ModLoader/releases/latest/download/dinput8.dll) into the root directory of the game (where "Outlaws.exe" is). This is usually C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games\Star Wars Outlaws
 
 ## MODDING
 
