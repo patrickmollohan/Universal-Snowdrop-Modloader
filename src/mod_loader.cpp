@@ -1,4 +1,5 @@
 #include "mod_loader.hpp"
+#include "dllmain.hpp"
 
 open_file_stream_proc oldOpenFileStream = nullptr;
 
@@ -39,9 +40,12 @@ uintptr_t FindOpenFileStreamAddress() {
 void ModLoaderMain(HMODULE hModule, DWORD reason) {
     if (reason == DLL_PROCESS_ATTACH) {
         // Initialize MinHook
-        if (MH_Initialize() != MH_OK) {
-            MessageBoxA(NULL, "Failed to initialise MinHook. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
-            return;
+        if (!minhookInitialised) {
+            if (MH_Initialize() != MH_OK) {
+                MessageBoxA(NULL, "Failed to initialise MinHook. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
+                return;
+            }
+            minhookInitialised = TRUE;
         }
 
         // Hook the OpenFileStream function

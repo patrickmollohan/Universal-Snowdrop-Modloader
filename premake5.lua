@@ -56,8 +56,9 @@ project "Ultimate-SWO-ModLoader"
    files { "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp" }
 
    files { "src/asi_loader.hpp", "src/asi_loader.cpp" }
+   files { "src/disk_cache_enabler.hpp", "src/disk_cache_enabler.cpp" }
    files { "src/mod_loader.hpp", "src/mod_loader.cpp" }
-   files { "src/dllmain.cpp" }
+   files { "src/dllmain.hpp", "src/dllmain.cpp" }
    files { "src/dinput8.def" }
    files { "src/Versioninfo.rc" }
    
