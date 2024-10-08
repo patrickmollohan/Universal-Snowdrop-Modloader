@@ -13,7 +13,7 @@ bool __fastcall ModLoader::HookOpenFileStream(uintptr_t stream, LPCSTR file_path
 }
 
 bool ModLoader::Enable() {
-    uintptr_t openFileStreamAddress = Utilities::Processes::FindPatternAddressMask(pattern, mask);
+    uintptr_t openFileStreamAddress = Utilities::Processes::FindPatternAddressMask(pattern, mask, (sizeof(pattern) / sizeof(pattern[0])));
     if (!openFileStreamAddress) {
         MessageBoxA(NULL, "OpenFileStream pattern not found. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
         return false;
