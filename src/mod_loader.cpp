@@ -17,7 +17,7 @@ bool ModLoader::Enable() {
     if (openFileStreamAddress) {
         oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
         if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
-            MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
+            MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
             return false;
         }
     }

@@ -7,7 +7,7 @@ bool MinHookHandler::Initialise() {
         if (MH_Initialize() == MH_OK) {
             mhInitialised = true;
         } else {
-            int errorMessageResult = MessageBoxA(NULL, "Failed to initialise MinHook.\nSome functionality may be disabled.", "MinHook Error", MB_OKCANCEL | MB_ICONERROR);
+            int errorMessageResult = MessageBoxA(NULL, "Failed to initialise MinHook.\nSome functionality may be disabled.", "Dank farrik!", MB_OKCANCEL | MB_ICONERROR);
             if (errorMessageResult == IDCANCEL) {
                 ExitProcess(0);
             }
