@@ -66,7 +66,7 @@ project "Ultimate-SWO-ModLoader"
       "src/asi_loader.hpp", "src/asi_loader.cpp",
       "src/dinput8.def",
       "src/disk_cache_enabler.hpp", "src/disk_cache_enabler.cpp",
-      "src/dllmain.hpp", "src/dllmain.cpp",
+      "src/dll_main.hpp", "src/dll_main.cpp",
       "src/minhook_handler.hpp", "src/minhook_handler.cpp",
       "src/mod_loader.hpp", "src/mod_loader.cpp",
       "src/utilities.hpp", "src/utilities.cpp",
