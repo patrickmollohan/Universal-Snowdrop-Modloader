@@ -6,14 +6,14 @@ const unsigned char ModLoader::mask[]    = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ModLoader::open_file_stream_proc oldOpenFileStream = nullptr;
 
 BOOL __fastcall HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags) {
-    if (Utilities::FileExists(file_path)) {
+    if (Utilities::Files::FileExists(file_path)) {
         return oldOpenFileStream(stream, file_path, flags | (1 << 0xA));
     }
     return oldOpenFileStream(stream, file_path, flags);
 }
 
 bool ModLoader::Enable() {
-    uintptr_t openFileStreamAddress = Utilities::FindPatternAddressMask(pattern, mask);
+    uintptr_t openFileStreamAddress = Utilities::Processes::FindPatternAddressMask(pattern, mask);
     if (openFileStreamAddress) {
         oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
         if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
