@@ -14,6 +14,8 @@ public:
     typedef bool(__fastcall* open_file_stream_proc)(__int64 stream, LPCSTR file_path, unsigned int flags);
 
 private:
+    static bool __fastcall HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags);
+
     static const unsigned char pattern[];
     static const unsigned char mask[];
 };
