@@ -6,7 +6,7 @@ const unsigned char ModLoader::mask[]    = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ModLoader::open_file_stream_proc oldOpenFileStream = nullptr;
 
 bool __fastcall ModLoader::HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags) {
-    if (Utilities::Files::FileExists(file_path)) {
+    if (Utilities::Files::LocalFileExists(file_path)) {
         flags |= (1 << 0xA);
     }
     return oldOpenFileStream(stream, file_path, flags);

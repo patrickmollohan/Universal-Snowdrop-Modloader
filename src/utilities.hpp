@@ -12,7 +12,7 @@ class Utilities {
 public:
     class Files {
     public:
-        static bool FileExists(LPCSTR file_path);
+        static bool LocalFileExists(LPCSTR file_path);
     };
 
     class MainModule {

@@ -1,6 +1,6 @@
 #include "utilities.hpp"
 
-bool Utilities::Files::FileExists(LPCSTR file_path) {
+bool Utilities::Files::LocalFileExists(LPCSTR file_path) {
     DWORD dwAttrib = GetFileAttributesA(file_path);
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 }
