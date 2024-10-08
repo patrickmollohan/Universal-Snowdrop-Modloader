@@ -207,14 +207,33 @@ ExceptionTracer::ExceptionTracer(char* buffer, size_t max, LPEXCEPTION_POINTERS 
  *  Print
  *      Prints some formated text into the logging buffer
  */
+#include <cstdarg> // For va_list, va_start, va_end
+#include <cstdio>  // For vsprintf_s
+
 void ExceptionTracer::Print(const char* fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
+
     if ((this->max - this->len) > max_chars_per_print)
-        this->len += vsprintf(&this->buffer[len], fmt, va);
+    {
+        // Use vsprintf_s to safely format the string
+        int written = vsprintf_s(&this->buffer[this->len], this->max - this->len, fmt, va);
+
+        // Check for errors (written < 0 indicates an error)
+        if (written >= 0)
+        {
+            this->len += written; // Update the length only if writing was successful
+        }
+        else
+        {
+            // Handle the error as appropriate (e.g., logging, setting an error state)
+        }
+    }
+
     va_end(va);
 }
+
 
 /*
  *  EnterScope
@@ -256,9 +275,12 @@ void ExceptionTracer::PrintUnhandledException()
 
     // Find out our module name for logging
     if (!this->module || !GetModuleFileNameA(this->module, module_name, sizeof(module_name)))
-        strcpy(module_name, "unknown");
+    {
+        // Use strcpy_s to prevent buffer overflow
+        strcpy_s(module_name, sizeof(module_name), "unknown");
+    }
 
-    // Log the exception in a similar format similar to debuggers format
+    // Log the exception in a similar format to debuggers' format
     Print("Unhandled exception at 0x%p in %s", address, FindModuleName(module, module_name, sizeof(module_name)));
     if (module) Print(" (+0x%x)", address - (uintptr_t)(module));
     Print(": 0x%X: %s", dwExceptionCode, GetExceptionCodeString(dwExceptionCode));
@@ -273,7 +295,7 @@ void ExceptionTracer::PrintUnhandledException()
             rw == 0 ? "reading location" : rw == 1 ? "writing location" : rw == 8 ? "DEP at" : "",
             addr);
 
-        // IN_PAGE_ERROR have another information...
+        // IN_PAGE_ERROR has another piece of information...
         if (dwExceptionCode == EXCEPTION_IN_PAGE_ERROR)
         {
             NewLine();
@@ -284,6 +306,7 @@ void ExceptionTracer::PrintUnhandledException()
 
     Print(".");
 }
+
 
 /*
  *  PrintRegisters
@@ -504,6 +527,7 @@ void ExceptionTracer::PrintBacktrace()
 
     char module_name[MAX_PATH];
     char sym_buffer[sizeof(SYMBOL_INFO) + symbol_max];
+    ZeroMemory(sym_buffer, sizeof(sym_buffer)); // Clear the entire buffer
 
     int backtrace_count = 0;        // Num of frames traced
     bool has_symbol_api = false;    // True if we have the symbol API available for use
@@ -595,6 +619,9 @@ static const char* GetExceptionCodeString(unsigned int code)
  * FindModuleName
  *      Finds module filename or "unknown"
  */
+#include <string.h>
+#include <windows.h>
+
 static const char* FindModuleName(HMODULE module, char* output, DWORD maxsize)
 {
     if (GetModuleFileNameA(module, output, maxsize))
@@ -607,17 +634,27 @@ static const char* FindModuleName(HMODULE module, char* output, DWORD maxsize)
         if (filename)
         {
             size_t size = strlen(++filename);
-            memmove(output, filename, size);
-            output[size] = 0;
+            // Ensure we do not exceed maxsize when copying
+            if (size < maxsize)
+            {
+                memmove(output, filename, size);
+                output[size] = 0; // Null-terminate
+            }
+            else
+            {
+                // Handle error if the size is too large
+                return NULL; // Or handle as appropriate
+            }
         }
     }
     else
     {
         // Unknown module
-        strcpy(output, "unknown");
+        strcpy_s(output, maxsize, "unknown");
     }
     return output;
 }
+
 
 /*
  * GetModuleFromAddress
