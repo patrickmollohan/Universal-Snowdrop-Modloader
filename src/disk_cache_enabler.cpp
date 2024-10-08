@@ -19,7 +19,7 @@ static HANDLE(WINAPI *CreateFileW_orig)(
     DWORD                 dwFlagsAndAttributes,
     HANDLE                hTemplateFile) = CreateFileW;
 
-HANDLE CreateFileA_hook(
+HANDLE DiskCacheEnabler::CreateFileA_hook(
     LPCSTR                lpFilename,
     DWORD                 dwDesiredAccess,
     DWORD                 dwShareMode,
@@ -41,7 +41,7 @@ HANDLE CreateFileA_hook(
         hTemplateFile);
 }
 
-HANDLE CreateFileW_hook(
+HANDLE DiskCacheEnabler::CreateFileW_hook(
     LPCWSTR               lpFilename,
     DWORD                 dwDesiredAccess,
     DWORD                 dwShareMode,
