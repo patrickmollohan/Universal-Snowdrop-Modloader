@@ -7,23 +7,29 @@ ModLoader::open_file_stream_proc oldOpenFileStream = nullptr;
 
 bool __fastcall ModLoader::HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags) {
     if (Utilities::Files::FileExists(file_path)) {
-        return oldOpenFileStream(stream, file_path, flags | (1 << 0xA));
+        flags |= (1 << 0xA);
     }
     return oldOpenFileStream(stream, file_path, flags);
 }
 
 bool ModLoader::Enable() {
     uintptr_t openFileStreamAddress = Utilities::Processes::FindPatternAddressMask(pattern, mask);
-    if (openFileStreamAddress) {
-        oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
-        if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
-            MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
-            return false;
-        }
+    if (!openFileStreamAddress) {
+        MessageBoxA(NULL, "OpenFileStream pattern not found. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
+        return false;
     }
+
+    oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
+    if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
+        MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
+        return false;
+    }
+    
     return true;
 }
 
 void ModLoader::Disable() {
-    MH_DisableHook(oldOpenFileStream);
+    if (oldOpenFileStream) {
+        MH_DisableHook(oldOpenFileStream);
+    }
 }
