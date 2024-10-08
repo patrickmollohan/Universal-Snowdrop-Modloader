@@ -43,13 +43,7 @@ uintptr_t Utilities::FindPatternAddressMask(const unsigned char* pattern, const 
             }
         }
         if (found) {
-            uintptr_t addr = baseAddress + i;
-            //char message[256];
-            //const char* foundAt = "Pattern found at: ";
-            //const char* baseAddressString = "Base address: ";
-            //snprintf(message, sizeof(message), "%s%p\n%s%p", foundAt, (void*)addr, baseAddressString, (void*)baseAddress);
-            //MessageBoxA(NULL, message, "Information", MB_OK);
-            return addr; // Return the found address
+            return baseAddress + i;
         }
     }
     return 0;
