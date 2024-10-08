@@ -12,16 +12,19 @@ workspace "Ultimate-SWO-ModLoader"
    cppdialect "C++latest"
    exceptionhandling ("SEH")
    
-   defines { "rsc_CompanyName=\"Patrick Mollohan\"" }
-   defines { "rsc_LegalCopyright=\"MIT License\""}
-   defines { "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"%{prj.name}.dll\"" }
-   defines { "rsc_FileDescription=\"Ultimate Star Wars Outlaws ModLoader\"" }
-   defines { "rsc_UpdateUrl=\"https://github.com/patrickmollohan/Ultimate-SWO-ModLoader\"" }
+   defines {
+      "rsc_CompanyName=\"Patrick Mollohan\"",
+      "rsc_LegalCopyright=\"MIT License\"",
+      "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"dinput8.dll\"",
+      "rsc_FileDescription=\"Ultimate Star Wars Outlaws ModLoader\"",
+      "rsc_UpdateUrl=\"https://github.com/patrickmollohan/Ultimate-SWO-ModLoader\""
+   }
 
    local major = 1
    local minor = 0
-   local build = 0
+   local build = 3
    local revision = 0
+
    if(_OPTIONS["with-version"]) then
      local t = {}
      for i in _OPTIONS["with-version"]:gmatch("([^.]+)") do
@@ -33,12 +36,15 @@ workspace "Ultimate-SWO-ModLoader"
      build = math.min(tonumber(t[3]), 65535)
      revision = math.min(tonumber(t[4]), 65535)
    end
-   defines { "rsc_FileVersion_MAJOR=" .. major }
-   defines { "rsc_FileVersion_MINOR=" .. minor }
-   defines { "rsc_FileVersion_BUILD=" .. build }
-   defines { "rsc_FileVersion_REVISION=" .. revision }
-   defines { "rsc_FileVersion=\"" .. major .. "." .. minor .. "." .. build .. "\"" }
-   defines { "rsc_ProductVersion=\"" .. major .. "." .. minor .. "." .. build .. "\"" }
+
+   defines {
+      "rsc_FileVersion_MAJOR=" .. major,
+      "rsc_FileVersion_MINOR=" .. minor,
+      "rsc_FileVersion_BUILD=" .. build,
+      "rsc_FileVersion_REVISION=" .. revision,
+      "rsc_FileVersion=\"" .. major .. "." .. minor .. "." .. build .. "\"",
+      "rsc_ProductVersion=\"" .. major .. "." .. minor .. "." .. build .. "\""
+   }
      
 project "Ultimate-SWO-ModLoader"
    kind "SharedLib"
@@ -46,22 +52,27 @@ project "Ultimate-SWO-ModLoader"
    targetdir "bin/%{cfg.buildcfg}"
    targetname "dinput8"
    targetextension ".dll"
-   
-   includedirs { "src" }
-   includedirs { "lib" }
 
-   includedirs { "lib/injector/minhook/include" }
-   files { "lib/injector/minhook/include/*.h", "lib/injector/minhook/src/**.h", "lib/injector/minhook/src/**.c" }
-   includedirs { "lib/injector/utility" }
-   files { "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp" }
+   includedirs {
+      "lib",
+      "lib/injector/minhook/include",
+      "lib/injector/utility",
+      "src"
+   }
 
-   files { "src/asi_loader.hpp", "src/asi_loader.cpp" }
-   files { "src/disk_cache_enabler.hpp", "src/disk_cache_enabler.cpp" }
-   files { "src/mod_loader.hpp", "src/mod_loader.cpp" }
-   files { "src/dllmain.hpp", "src/dllmain.cpp" }
-   files { "src/dinput8.def" }
-   files { "src/Versioninfo.rc" }
-   
+   files {
+      "lib/injector/minhook/include/*.h", "lib/injector/minhook/src/**.h", "lib/injector/minhook/src/**.c",
+      "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp",
+      "src/asi_loader.hpp", "src/asi_loader.cpp",
+      "src/dinput8.def",
+      "src/disk_cache_enabler.hpp", "src/disk_cache_enabler.cpp",
+      "src/dllmain.hpp", "src/dllmain.cpp",
+      "src/minhook_handler.hpp", "src/minhook_handler.cpp",
+      "src/mod_loader.hpp", "src/mod_loader.cpp",
+      "src/utilities.hpp", "src/utilities.cpp",
+      "src/Versioninfo.rc"
+   }
+
    characterset ("UNICODE")
    
    filter "configurations:Debug"

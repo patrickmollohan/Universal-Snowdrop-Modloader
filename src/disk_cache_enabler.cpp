@@ -1,5 +1,4 @@
 #include "disk_cache_enabler.hpp"
-#include "dllmain.hpp"
 
 // Original function pointers
 static HANDLE(WINAPI *CreateFileA_orig)(
@@ -64,45 +63,35 @@ HANDLE CreateFileW_hook(
         hTemplateFile);
 }
 
-void DiskCacheEnablerMain(HMODULE hModule, DWORD dwReason) {
-    if (dwReason == DLL_PROCESS_ATTACH) {
-        // Initialize MinHook
-        if (!minhookInitialised) {
-            if (MH_Initialize() != MH_OK) {
-                MessageBoxA(NULL, "Failed to initialise MinHook. Mod loading disabled.", "Error", MB_OK | MB_ICONERROR);
-                return;
-            }
-            minhookInitialised = TRUE;
-        }
-
-        // Create hooks for CreateFileA and CreateFileW
-        if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileA), 
-                          &CreateFileA_hook, 
-                          reinterpret_cast<LPVOID*>(&CreateFileA_orig)) != MH_OK) {
-            MessageBoxA(NULL, "Failed to create hook!", "Error", MB_OK);
-        }
-
-        if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileW), 
-                          &CreateFileW_hook, 
-                          reinterpret_cast<LPVOID*>(&CreateFileW_orig)) != MH_OK) {
-            MessageBoxA(NULL, "Failed to create hook for CreateFileW!", "Error", MB_OK);
-        }
-
-        // Enable the hooks
-        if (MH_EnableHook(reinterpret_cast<LPVOID>(CreateFileA)) != MH_OK) {
-            MessageBoxA(NULL, "Failed to enable hook!", "Error", MB_OK);
-        }
-
-        if (MH_EnableHook(reinterpret_cast<LPVOID>(CreateFileW)) != MH_OK) {
-            MessageBoxA(NULL, "Failed to enable hook for CreateFileW!", "Error", MB_OK);
-        }
-    } else if (dwReason == DLL_PROCESS_DETACH) {
-        // Disable the hooks
-        MH_DisableHook(reinterpret_cast<LPVOID>(CreateFileA));
-        MH_DisableHook(reinterpret_cast<LPVOID>(CreateFileW));
-
-        // Uninitialize MinHook
-        MH_Uninitialize();
-        minhookInitialised = FALSE;
+bool DiskCacheEnabler::Enable() {
+    if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileA),
+        &CreateFileA_hook,
+        reinterpret_cast<LPVOID*>(&CreateFileA_orig)) != MH_OK) {
+        MessageBoxA(NULL, "Failed to create hook for CreateFileA!", "Error", MB_OK);
+        return false;
     }
+
+    if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileW),
+        &CreateFileW_hook,
+        reinterpret_cast<LPVOID*>(&CreateFileW_orig)) != MH_OK) {
+        MessageBoxA(NULL, "Failed to create hook for CreateFileW!", "Error", MB_OK);
+        return false;
+    }
+
+    // Enable the hooks
+    if (MH_EnableHook(reinterpret_cast<LPVOID>(CreateFileA)) != MH_OK) {
+        MessageBoxA(NULL, "Failed to enable hook for CreateFileA!", "Error", MB_OK);
+        return false;
+    }
+
+    if (MH_EnableHook(reinterpret_cast<LPVOID>(CreateFileW)) != MH_OK) {
+        MessageBoxA(NULL, "Failed to enable hook for CreateFileW!", "Error", MB_OK);
+        return false;
+    }
+    return true;
+}
+
+void DiskCacheEnabler::Disable() {
+    MH_DisableHook(reinterpret_cast<LPVOID>(CreateFileA));
+    MH_DisableHook(reinterpret_cast<LPVOID>(CreateFileW));
 }

@@ -8,4 +8,8 @@
 #include <Windows.h>
 #include <MinHook.h>
 
-void DiskCacheEnablerMain(HMODULE hModule, DWORD dwReason);
+class DiskCacheEnabler {
+public:
+    static bool Enable();
+    static void Disable();
+};

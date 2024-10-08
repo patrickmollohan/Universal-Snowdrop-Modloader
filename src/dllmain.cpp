@@ -1,10 +1,19 @@
 #include "dllmain.hpp"
 
-BOOL minhookInitialised = FALSE;
-
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
-    ASILoaderMain(hModule, reason);
-    DiskCacheEnablerMain(hModule, reason);
-    ModLoaderMain(hModule, reason);
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
+    if (dwReason == DLL_PROCESS_ATTACH) {
+        MinHookHandler::Initialise();
+        ASILoader::Enable(hModule);
+        DiskCacheEnabler::Enable();
+        ModLoader::Enable();
+        MinHookHandler::EnableAllHooks();
+    } else if (dwReason == DLL_PROCESS_DETACH) {
+        ASILoader::Disable();
+        DiskCacheEnabler::Disable();
+        ModLoader::Disable();
+        MinHookHandler::Shutdown();
+    } else {
+        return FALSE;
+    }
     return TRUE;
 }

@@ -1598,38 +1598,39 @@ void Init() {
     }
 }
 
-void ASILoaderMain(HMODULE hModule, DWORD reason) {
-    if (reason == DLL_PROCESS_ATTACH) {
-        hm = hModule;
-        Init();
-    } else if (reason == DLL_PROCESS_DETACH) {
-        for (size_t i = 0; i < OLE32ExportsNamesCount; i++) {
-            if (OLE32Data[i][IATPtr] && OLE32Data[i][ProcAddress]) {
-                auto ptr = (size_t*)OLE32Data[i][IATPtr];
-                DWORD dwProtect[2];
-                VirtualProtect(ptr, sizeof(size_t), PAGE_EXECUTE_READWRITE, &dwProtect[0]);
-                *ptr = OLE32Data[i][ProcAddress];
-                VirtualProtect(ptr, sizeof(size_t), dwProtect[0], &dwProtect[1]);
-            }
-        }
+bool ASILoader::Enable(HMODULE hModule) {
+    hm = hModule;
+    Init();
+    return true;
+}
 
-        {
-            using namespace OverloadFromFolder;
-            mhCreateFileA = {};
-            mhCreateFileW = {};
-            mhLoadLibraryExA = {};
-            mhLoadLibraryExW = {};
-            mhGetFileAttributesA = {};
-            mhGetFileAttributesW = {};
-            mhGetFileAttributesExA = {};
-            mhGetFileAttributesExW = {};
-            mhFindFirstFileA = {};
-            mhFindNextFileA = {};
-            mhFindFirstFileW = {};
-            mhFindNextFileW = {};
-            mhFindFirstFileExA = {};
-            mhFindFirstFileExW = {};
+void ASILoader::Disable() {
+    for (size_t i = 0; i < OLE32ExportsNamesCount; i++) {
+        if (OLE32Data[i][IATPtr] && OLE32Data[i][ProcAddress]) {
+            auto ptr = (size_t*)OLE32Data[i][IATPtr];
+            DWORD dwProtect[2];
+            VirtualProtect(ptr, sizeof(size_t), PAGE_EXECUTE_READWRITE, &dwProtect[0]);
+            *ptr = OLE32Data[i][ProcAddress];
+            VirtualProtect(ptr, sizeof(size_t), dwProtect[0], &dwProtect[1]);
         }
+    }
+
+    {
+        using namespace OverloadFromFolder;
+        mhCreateFileA = {};
+        mhCreateFileW = {};
+        mhLoadLibraryExA = {};
+        mhLoadLibraryExW = {};
+        mhGetFileAttributesA = {};
+        mhGetFileAttributesW = {};
+        mhGetFileAttributesExA = {};
+        mhGetFileAttributesExW = {};
+        mhFindFirstFileA = {};
+        mhFindNextFileA = {};
+        mhFindFirstFileW = {};
+        mhFindNextFileW = {};
+        mhFindFirstFileExA = {};
+        mhFindFirstFileExW = {};
     }
 }
 
