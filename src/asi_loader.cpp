@@ -14,14 +14,12 @@ struct shared {
     FARPROC DllGetClassObject;
     FARPROC DllRegisterServer;
     FARPROC DllUnregisterServer;
-    FARPROC DebugSetMute;
 
     void LoadOriginalLibrary(HMODULE dll) {
         DllCanUnloadNow = GetProcAddress(dll, "DllCanUnloadNow");
         DllGetClassObject = GetProcAddress(dll, "DllGetClassObject");
         DllRegisterServer = GetProcAddress(dll, "DllRegisterServer");
         DllUnregisterServer = GetProcAddress(dll, "DllUnregisterServer");
-        DebugSetMute = GetProcAddress(dll, "DebugSetMute");
     }
 } shared;
 
@@ -58,10 +56,6 @@ void _DllGetClassObject() {
     shared.DllGetClassObject();
 }
 
-void _DebugSetMute() {
-    shared.DebugSetMute();
-}
-
 bool WINAPI IsUltimateASILoader() {
     return true;
 }
@@ -73,7 +67,6 @@ void* WINAPI GetMemoryModule() {
 
 HMODULE hm;
 std::vector<std::wstring> iniPaths;
-std::filesystem::path sFileLoaderPath;
 std::filesystem::path gamePath;
 std::wstring sLoadFromAPI;
 thread_local std::string sCurrentFindFileDirA;
@@ -373,9 +366,6 @@ void LoadPlugins() {
 
         SetCurrentDirectoryW(szSelfPath.c_str());
 
-        if (!sFileLoaderPath.empty()) {
-            if (SetCurrentDirectoryW(sFileLoaderPath.wstring().c_str())) FindFiles(&fd);
-        }
     }
 
     SetCurrentDirectoryW(oldDir.c_str()); // Reset the current directory
@@ -420,92 +410,11 @@ void LoadPluginsAndRestoreIAT(uintptr_t retaddr, std::wstring_view calledFrom = 
     LoadEverything();
 }
 
-std::filesystem::path WINAPI GetOverloadedFilePath(std::filesystem::path lpFilename) {
-    try {
-        std::error_code ec;
-
-        static auto starts_with = [](const std::filesystem::path& path, const std::filesystem::path& base) -> bool {
-            std::wstring str1(path.wstring()); std::wstring str2(base.wstring());
-            std::transform(str1.begin(), str1.end(), str1.begin(), ::tolower);
-            std::transform(str2.begin(), str2.end(), str2.begin(), ::tolower);
-            return str1.starts_with(str2);
-        };
-
-        if (gamePath.empty()) gamePath = std::filesystem::path(GetExeModulePath());
-
-        auto filePath = lpFilename;
-        auto absolutePath = std::filesystem::absolute(filePath, ec);
-        auto relativePath = lexicallyRelativeCaseIns(absolutePath, gamePath);
-        auto commonPath = gamePath;
-
-        if (starts_with(relativePath, "..")) {
-            auto common = std::mismatch(absolutePath.begin(), absolutePath.end(), gamePath.begin());
-            for (auto& iter = common.second; iter != gamePath.end(); ++iter) commonPath = commonPath.parent_path();
-
-            std::filesystem::path rp;
-            for (auto& p : relativePath) {
-                if (p != "..") rp = rp / p;
-            }
-            relativePath = rp;
-        }
-
-        if (starts_with(std::filesystem::path(absolutePath).remove_filename(), gamePath) || starts_with(std::filesystem::path(absolutePath).remove_filename(), commonPath)) {
-            auto newPath = gamePath / sFileLoaderPath / relativePath;
-            if (std::filesystem::exists(newPath, ec) && !std::filesystem::is_directory(newPath, ec)) return newPath;
-        }
-    } catch (...) {}
-
-    return {};
-}
-
-bool WINAPI GetOverloadedFilePathA(const char* lpFilename, char* out, size_t out_size) {
-    try {
-        if (!sFileLoaderPath.empty()) {
-            auto path = GetOverloadedFilePath(lpFilename);
-            if (!path.empty()) {
-                if (out && out_size) {
-                    if (!std::filesystem::path(lpFilename).is_absolute()) path = lexicallyRelativeCaseIns(path, gamePath);
-                    out[path.string().copy(out, out_size, 0)] = '\0';
-                }
-                return true;
-            }
-        }
-    } catch (...) {}
-
-    return false;
-}
-
-bool WINAPI GetOverloadedFilePathW(const wchar_t* lpFilename, wchar_t* out, size_t out_size) {
-    try {
-        if (!sFileLoaderPath.empty()) {
-            auto path = GetOverloadedFilePath(lpFilename);
-            if (!path.empty()) {
-                if (out && out_size) {
-                    if (!std::filesystem::path(lpFilename).is_absolute()) path = lexicallyRelativeCaseIns(path, gamePath);
-                    out[path.wstring().copy(out, out_size, 0)] = '\0';
-                }
-                return true;
-            }
-        }
-    } catch (...) {}
-
-    return false;
-}
-
-std::filesystem::path GetFilePathForOverload(auto path) {
-    try {
-        if (!sFileLoaderPath.empty()) return GetOverloadedFilePath(path);
-    } catch (...) {}
-
-    return {};
-}
-
 #define value_orA(path1, path2) (path1.empty() ? path2 : path1.string().c_str())
 #define value_orW(path1, path2) (path1.empty() ? path2 : path1.wstring().c_str())
 
 HMODULE LoadLib(const std::wstring& lpLibFileName) {
-    auto r = GetFilePathForOverload(lpLibFileName);
-    return LoadLibraryW(value_orW(r, lpLibFileName.c_str()));
+    return LoadLibraryW(lpLibFileName.c_str());
 }
 
 void WINAPI CustomGetStartupInfoA(LPSTARTUPINFOA lpStartupInfo) {
@@ -536,34 +445,6 @@ FARPROC WINAPI CustomGetProcAddress(HMODULE hModule, LPCSTR lpProcName) {
 DWORD WINAPI CustomGetShortPathNameA(LPCSTR lpszLongPath, LPSTR lpszShortPath, DWORD cchBuffer) {
     LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"GetShortPathNameA");
     return GetShortPathNameA(lpszLongPath, lpszShortPath, cchBuffer);
-}
-
-HMODULE WINAPI CustomLoadLibraryExA(LPCSTR lpLibFileName, HANDLE hFile, DWORD dwFlags) {
-    LoadOriginalLibrary();
-
-    auto r = GetFilePathForOverload(lpLibFileName);
-    return LoadLibraryExA(value_orA(r, lpLibFileName), hFile, dwFlags);
-}
-
-HMODULE WINAPI CustomLoadLibraryExW(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags) {
-    LoadOriginalLibrary();
-
-    auto r = GetFilePathForOverload(lpLibFileName);
-    return LoadLibraryExW(value_orW(r, lpLibFileName), hFile, dwFlags);
-}
-
-HMODULE WINAPI CustomLoadLibraryA(LPCSTR lpLibFileName) {
-    LoadOriginalLibrary();
-
-    auto r = GetFilePathForOverload(lpLibFileName);
-    return LoadLibraryA(value_orA(r, lpLibFileName));
-}
-
-HMODULE WINAPI CustomLoadLibraryW(LPCWSTR lpLibFileName) {
-    LoadOriginalLibrary();
-
-    auto r = GetFilePathForOverload(lpLibFileName);
-    return LoadLibraryW(value_orW(r, lpLibFileName));
 }
 
 BOOL WINAPI CustomFreeLibrary(HMODULE hLibModule) {
@@ -622,73 +503,6 @@ LPWSTR WINAPI CustomGetCommandLineW() {
 void WINAPI CustomAcquireSRWLockExclusive(PSRWLOCK SRWLock) {
     LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"AcquireSRWLockExclusive");
     return AcquireSRWLockExclusive(SRWLock);
-}
-
-HANDLE WINAPI CustomCreateFileA(LPCSTR lpFileName, DWORD dwAccess, DWORD dwSharing, LPSECURITY_ATTRIBUTES saAttributes, DWORD dwCreation, DWORD dwAttributes, HANDLE hTemplate) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"CreateFileA");
-        once = true;
-    }
-
-    auto r = GetFilePathForOverload(lpFileName);
-    return CreateFileA(value_orA(r, lpFileName), dwAccess, dwSharing, saAttributes, dwCreation, dwAttributes, hTemplate);
-}
-
-HANDLE WINAPI CustomCreateFileW(LPCWSTR lpFileName, DWORD dwAccess, DWORD dwSharing, LPSECURITY_ATTRIBUTES saAttributes, DWORD dwCreation, DWORD dwAttributes, HANDLE hTemplate) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"CreateFileW");
-        once = true;
-    }
-
-    auto r = GetFilePathForOverload(lpFileName);
-    return CreateFileW(value_orW(r, lpFileName), dwAccess, dwSharing, saAttributes, dwCreation, dwAttributes, hTemplate);
-}
-
-DWORD WINAPI CustomGetFileAttributesA(LPCSTR lpFileName) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"GetFileAttributesA");
-        once = true;
-    }
-
-    auto r = GetFilePathForOverload(lpFileName);
-    return GetFileAttributesA(value_orA(r, lpFileName));
-}
-
-DWORD WINAPI CustomGetFileAttributesW(LPCWSTR lpFileName) {
-    static bool once = false;
-    if (!once)
-    {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"GetFileAttributesW");
-        once = true;
-    }
-
-    auto r = GetFilePathForOverload(lpFileName);
-    return GetFileAttributesW(value_orW(r, lpFileName));
-}
-
-BOOL WINAPI CustomGetFileAttributesExA(LPCSTR lpFileName, GET_FILEEX_INFO_LEVELS fInfoLevelId, LPVOID lpFileInformation) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"GetFileAttributesExA");
-        once = true;
-    }
-
-    auto r = GetFilePathForOverload(lpFileName);
-    return GetFileAttributesExA(value_orA(r, lpFileName), fInfoLevelId, lpFileInformation);
-}
-
-BOOL WINAPI CustomGetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fInfoLevelId, LPVOID lpFileInformation) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"GetFileAttributesExW");
-        once = true;
-    }
-
-    auto r = GetFilePathForOverload(lpFileName);
-    return GetFileAttributesExW(value_orW(r, lpFileName), fInfoLevelId, lpFileInformation);
 }
 
 DEFINE_GUID(CLSID_DirectInput8, 0x25E609E4, 0xB259, 0x11CF, 0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00);
@@ -808,22 +622,6 @@ bool HookKernel32IAT(HMODULE mod, bool exe) {
                 if (exe) Kernel32Data[eGetShortPathNameA][IATPtr] = i;
                 *(size_t*)i = (size_t)CustomGetShortPathNameA;
                 matchedImports++;
-            } else if (ptr == Kernel32Data[eLoadLibraryExA][ProcAddress]) {
-                if (exe) Kernel32Data[eLoadLibraryExA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomLoadLibraryExA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eLoadLibraryExW][ProcAddress]) {
-                if (exe) Kernel32Data[eLoadLibraryExW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomLoadLibraryExW;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eLoadLibraryA][ProcAddress]) {
-                if (exe) Kernel32Data[eLoadLibraryA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomLoadLibraryA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eLoadLibraryW][ProcAddress]) {
-                if (exe) Kernel32Data[eLoadLibraryW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomLoadLibraryW;
-                matchedImports++;
             } else if (ptr == Kernel32Data[eFreeLibrary][ProcAddress]) {
                 if (exe) Kernel32Data[eFreeLibrary][IATPtr] = i;
                 *(size_t*)i = (size_t)CustomFreeLibrary;
@@ -868,32 +666,7 @@ bool HookKernel32IAT(HMODULE mod, bool exe) {
                 if (exe) Kernel32Data[eAcquireSRWLockExclusive][IATPtr] = i;
                 *(size_t*)i = (size_t)CustomAcquireSRWLockExclusive;
                 matchedImports++;
-            } else if (ptr == Kernel32Data[eCreateFileA][ProcAddress]) {
-                if (exe) Kernel32Data[eCreateFileA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomCreateFileA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eCreateFileW][ProcAddress]) {
-                if (exe) Kernel32Data[eCreateFileW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomCreateFileW;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eGetFileAttributesA][ProcAddress]) {
-                if (exe) Kernel32Data[eGetFileAttributesA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomGetFileAttributesA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eGetFileAttributesW][ProcAddress]) {
-                if (exe) Kernel32Data[eGetFileAttributesW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomGetFileAttributesW;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eGetFileAttributesExA][ProcAddress]) {
-                if (exe) Kernel32Data[eGetFileAttributesExA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomGetFileAttributesExA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eGetFileAttributesExW][ProcAddress]) {
-                if (exe) Kernel32Data[eGetFileAttributesExW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomGetFileAttributesExW;
-                matchedImports++;
             }
-
             VirtualProtect((size_t*)i, sizeof(size_t), dwProtect[0], &dwProtect[1]);
         }
     };
@@ -1096,7 +869,6 @@ void Init() {
     sLoadFromAPI = GetPrivateProfileStringW(TEXT("globalsets"), TEXT("loadfromapi"), L"", iniPaths);
     auto nFindModule = GetPrivateProfileIntW(TEXT("globalsets"), TEXT("findmodule"), FALSE, iniPaths);
     auto nDisableCrashDumps = GetPrivateProfileIntW(TEXT("globalsets"), TEXT("disablecrashdumps"), FALSE, iniPaths);
-    sFileLoaderPath = GetPrivateProfileStringW(TEXT("fileloader"), TEXT("overloadfromfolder"), TEXT("update"), iniPaths);
 
     auto FolderExists = [](auto szPath) -> bool {
         try {
@@ -1121,12 +893,6 @@ void Init() {
             memcpy(&SetUnhandledExceptionFilter, &ret, sizeof(ret));
             VirtualProtect(&SetUnhandledExceptionFilter, sizeof(ret), protect[0], &protect[1]);
         }
-    }
-
-    if (!FolderExists(sFileLoaderPath)) {
-        sFileLoaderPath.clear();
-    } else {
-        sFileLoaderPath = sFileLoaderPath.make_preferred();
     }
 
     if (nForceEPHook != FALSE || nDontLoadFromDllMain != FALSE) {

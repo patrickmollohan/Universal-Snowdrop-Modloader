@@ -1,8 +1,6 @@
 LIBRARY "dinput8"
 EXPORTS
 IsUltimateASILoader = IsUltimateASILoader
-GetOverloadedFilePathA = GetOverloadedFilePathA
-GetOverloadedFilePathW = GetOverloadedFilePathW
 GetMemoryModule = GetMemoryModule
 DirectInput8Create = _DirectInput8Create
 DllCanUnloadNow = _DllCanUnloadNow PRIVATE
