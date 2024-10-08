@@ -76,7 +76,6 @@ std::vector<std::wstring> iniPaths;
 std::filesystem::path sFileLoaderPath;
 std::filesystem::path gamePath;
 std::wstring sLoadFromAPI;
-std::vector<std::pair<std::filesystem::path, LARGE_INTEGER>> updateFilenames;
 thread_local std::string sCurrentFindFileDirA;
 thread_local std::wstring sCurrentFindFileDirW;
 
@@ -133,49 +132,6 @@ std::filesystem::path lexicallyRelativeCaseIns(const std::filesystem::path& path
         result /= element;
     }
     return result;
-}
-
-void FillUpdateFilenames() {
-    if (updateFilenames.empty()) {
-        auto path = gamePath / sFileLoaderPath;
-        std::error_code ec;
-        constexpr auto perms = std::filesystem::directory_options::skip_permission_denied | std::filesystem::directory_options::follow_directory_symlink;
-        for (const auto& it : std::filesystem::recursive_directory_iterator(path, perms, ec)) {
-            if (!it.is_directory(ec)) {
-                LARGE_INTEGER Integer;
-                Integer.QuadPart = std::filesystem::file_size(it, ec);
-                updateFilenames.emplace_back(lexicallyRelativeCaseIns(it.path(), path), Integer);
-            }
-        }
-    }
-}
-
-LARGE_INTEGER FindFileCheckOverloadedPath(CHAR* filename) {
-    FillUpdateFilenames();
-
-    if (!updateFilenames.empty()) {
-        auto it = std::find_if(updateFilenames.begin(), updateFilenames.end(), [&](const auto& val) {
-            return (sCurrentFindFileDirA.starts_with(val.first.parent_path().string()) && val.first.string().ends_with(filename));
-        });
-
-        if (it != updateFilenames.end()) return it->second;
-    }
-
-    return {};
-}
-
-LARGE_INTEGER FindFileCheckOverloadedPath(WCHAR* filename) {
-    FillUpdateFilenames();
-
-    if (!updateFilenames.empty()) {
-        auto it = std::find_if(updateFilenames.begin(), updateFilenames.end(), [&](const auto& val) {
-            return (sCurrentFindFileDirW.starts_with(val.first.parent_path().wstring()) && val.first.wstring().ends_with(filename));
-        });
-
-        if (it != updateFilenames.end()) return it->second;
-    }
-
-    return {};
 }
 
 std::wstring to_wstring(std::string_view cstr) {
@@ -735,126 +691,6 @@ BOOL WINAPI CustomGetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVEL
     return GetFileAttributesExW(value_orW(r, lpFileName), fInfoLevelId, lpFileInformation);
 }
 
-HANDLE WINAPI CustomFindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"FindFirstFileA");
-        once = true;
-    }
-
-    auto ret = FindFirstFileA(lpFileName, lpFindFileData);
-
-    sCurrentFindFileDirA = lpFileName;
-
-    auto i = FindFileCheckOverloadedPath(lpFindFileData->cFileName);
-    if (i.QuadPart) {
-        lpFindFileData->nFileSizeHigh = i.HighPart;
-        lpFindFileData->nFileSizeLow = i.LowPart;
-    }
-
-    return ret;
-}
-
-BOOL WINAPI CustomFindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"FindNextFileA");
-        once = true;
-    }
-
-    auto ret = FindNextFileA(hFindFile, lpFindFileData);
-
-    auto i = FindFileCheckOverloadedPath(lpFindFileData->cFileName);
-    if (i.QuadPart) {
-        lpFindFileData->nFileSizeHigh = i.HighPart;
-        lpFindFileData->nFileSizeLow = i.LowPart;
-    }
-
-    return ret;
-}
-
-HANDLE WINAPI CustomFindFirstFileW(LPCWSTR lpFileName, LPWIN32_FIND_DATAW lpFindFileData) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"FindFirstFileW");
-        once = true;
-    }
-
-    auto ret = FindFirstFileW(lpFileName, lpFindFileData);
-
-    sCurrentFindFileDirW = lpFileName;
-
-    auto i = FindFileCheckOverloadedPath(lpFindFileData->cFileName);
-    if (i.QuadPart) {
-        lpFindFileData->nFileSizeHigh = i.HighPart;
-        lpFindFileData->nFileSizeLow = i.LowPart;
-    }
-
-    return ret;
-}
-
-BOOL WINAPI CustomFindNextFileW(HANDLE hFindFile, LPWIN32_FIND_DATAW lpFindFileData) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"FindNextFileW");
-        once = true;
-    }
-
-    auto ret = FindNextFileW(hFindFile, lpFindFileData);
-
-    auto i = FindFileCheckOverloadedPath(lpFindFileData->cFileName);
-    if (i.QuadPart) {
-        lpFindFileData->nFileSizeHigh = i.HighPart;
-        lpFindFileData->nFileSizeLow = i.LowPart;
-    }
-
-    return ret;
-}
-
-HANDLE WINAPI CustomFindFirstFileExA(LPCSTR lpFileName, FINDEX_INFO_LEVELS fInfoLevelId, WIN32_FIND_DATAA* lpFindFileData, FINDEX_SEARCH_OPS fSearchOp, LPVOID lpSearchFilter, DWORD dwAdditionalFlags) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"FindFirstFileExA");
-        once = true;
-    }
-
-    auto ret = FindFirstFileExA(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags);
-
-    if (fInfoLevelId != FindExInfoMaxInfoLevel) {
-        sCurrentFindFileDirA = lpFileName;
-
-        auto i = FindFileCheckOverloadedPath(lpFindFileData->cFileName);
-        if (i.QuadPart) {
-            lpFindFileData->nFileSizeHigh = i.HighPart;
-            lpFindFileData->nFileSizeLow = i.LowPart;
-        }
-    }
-
-    return ret;
-}
-
-HANDLE WINAPI CustomFindFirstFileExW(LPCWSTR lpFileName, FINDEX_INFO_LEVELS fInfoLevelId, WIN32_FIND_DATAW* lpFindFileData, FINDEX_SEARCH_OPS fSearchOp, LPVOID lpSearchFilter, DWORD dwAdditionalFlags) {
-    static bool once = false;
-    if (!once) {
-        LoadPluginsAndRestoreIAT((uintptr_t)_ReturnAddress(), L"FindFirstFileExW");
-        once = true;
-    }
-
-    auto ret = FindFirstFileExW(lpFileName, fInfoLevelId, lpFindFileData, fSearchOp, lpSearchFilter, dwAdditionalFlags);
-
-    if (fInfoLevelId != FindExInfoMaxInfoLevel) {
-        sCurrentFindFileDirW = lpFileName;
-
-        auto i = FindFileCheckOverloadedPath(lpFindFileData->cFileName);
-        if (i.QuadPart) {
-            lpFindFileData->nFileSizeHigh = i.HighPart;
-            lpFindFileData->nFileSizeLow = i.LowPart;
-        }
-    }
-
-    return ret;
-}
-
 DEFINE_GUID(CLSID_DirectInput8, 0x25E609E4, 0xB259, 0x11CF, 0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00);
 HRESULT WINAPI CustomCoCreateInstance(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv) {
     HRESULT hr = REGDB_E_KEYMISSING;
@@ -971,30 +807,6 @@ bool HookKernel32IAT(HMODULE mod, bool exe) {
             } else if (ptr == Kernel32Data[eGetShortPathNameA][ProcAddress]) {
                 if (exe) Kernel32Data[eGetShortPathNameA][IATPtr] = i;
                 *(size_t*)i = (size_t)CustomGetShortPathNameA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eFindFirstFileA][ProcAddress]) {
-                if (exe) Kernel32Data[eFindFirstFileA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomFindFirstFileA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eFindNextFileA][ProcAddress]) {
-                if (exe) Kernel32Data[eFindNextFileA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomFindNextFileA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eFindFirstFileW][ProcAddress]) {
-                if (exe) Kernel32Data[eFindFirstFileW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomFindFirstFileW;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eFindNextFileW][ProcAddress]) {
-                if (exe) Kernel32Data[eFindNextFileW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomFindNextFileW;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eFindFirstFileExA][ProcAddress]) {
-                if (exe) Kernel32Data[eFindFirstFileExA][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomFindFirstFileExA;
-                matchedImports++;
-            } else if (ptr == Kernel32Data[eFindFirstFileExW][ProcAddress]) {
-                if (exe) Kernel32Data[eFindFirstFileExW][IATPtr] = i;
-                *(size_t*)i = (size_t)CustomFindFirstFileExW;
                 matchedImports++;
             } else if (ptr == Kernel32Data[eLoadLibraryExA][ProcAddress]) {
                 if (exe) Kernel32Data[eLoadLibraryExA][IATPtr] = i;
