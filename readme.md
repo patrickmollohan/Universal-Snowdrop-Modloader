@@ -16,6 +16,8 @@ After installing Ultimate SWO ModLoader, you may copy any modified game files re
 
 You can use programs such as DTZxPorter's [Hunter](https://dtzxporter.com/tools/hunter) to extract the game files.
 
+Note: texture replacement currently does not work, as file streaming is not yet supported.
+
 ## ASI LOADING
 
 Since this modloader is based on Ultimate ASI Loader, you can put additional ASI files in the "scripts" folder in the root directory of the game to add functionality to the game. If the folder does not exist (it doesn't by default), create it.
