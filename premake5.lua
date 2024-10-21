@@ -15,7 +15,7 @@ workspace "Ultimate-SWO-ModLoader"
    defines {
       "rsc_CompanyName=\"Patrick Mollohan\"",
       "rsc_LegalCopyright=\"MIT License\"",
-      "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"dinput8.dll\"",
+      "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"version.dll\"",
       "rsc_FileDescription=\"Ultimate Star Wars Outlaws ModLoader\"",
       "rsc_UpdateUrl=\"https://github.com/patrickmollohan/Ultimate-SWO-ModLoader\""
    }
@@ -50,7 +50,7 @@ project "Ultimate-SWO-ModLoader"
    kind "SharedLib"
    language "C++"
    targetdir "bin/%{cfg.buildcfg}"
-   targetname "dinput8"
+   targetname "version"
    targetextension ".dll"
 
    includedirs {
@@ -64,7 +64,7 @@ project "Ultimate-SWO-ModLoader"
       "lib/injector/minhook/include/*.h", "lib/injector/minhook/src/**.h", "lib/injector/minhook/src/**.c",
       "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp",
       "src/asi_loader.hpp", "src/asi_loader.cpp",
-      "src/dinput8.def",
+      "src/version.def",
       "src/disk_cache_enabler.hpp", "src/disk_cache_enabler.cpp",
       "src/dll_main.hpp", "src/dll_main.cpp",
       "src/minhook_handler.hpp", "src/minhook_handler.cpp",

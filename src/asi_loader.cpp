@@ -23,22 +23,69 @@ struct shared {
     }
 } shared;
 
-struct dinput8_dll {
+struct version_dll {
     HMODULE dll;
-    FARPROC DirectInput8Create;
+    FARPROC GetFileVersionInfoA;
+    FARPROC GetFileVersionInfoByHandle;
+    FARPROC GetFileVersionInfoExA;
+    FARPROC GetFileVersionInfoExW;
+    FARPROC GetFileVersionInfoSizeA;
+    FARPROC GetFileVersionInfoSizeExA;
+    FARPROC GetFileVersionInfoSizeExW;
+    FARPROC GetFileVersionInfoSizeW;
+    FARPROC GetFileVersionInfoW;
+    FARPROC VerFindFileA;
+    FARPROC VerFindFileW;
+    FARPROC VerInstallFileA;
+    FARPROC VerInstallFileW;
+    FARPROC VerLanguageNameA;
+    FARPROC VerLanguageNameW;
+    FARPROC VerQueryValueA;
+    FARPROC VerQueryValueW;
 
-    void LoadOriginalLibrary(HMODULE module) {
+    void LoadOriginalLibrary(HMODULE module)
+    {
         dll = module;
         shared.LoadOriginalLibrary(dll);
-        DirectInput8Create = GetProcAddress(dll, "DirectInput8Create");
+        GetFileVersionInfoA = GetProcAddress(dll, "GetFileVersionInfoA");
+        GetFileVersionInfoByHandle = GetProcAddress(dll, "GetFileVersionInfoByHandle");
+        GetFileVersionInfoExA = GetProcAddress(dll, "GetFileVersionInfoExA");
+        GetFileVersionInfoExW = GetProcAddress(dll, "GetFileVersionInfoExW");
+        GetFileVersionInfoSizeA = GetProcAddress(dll, "GetFileVersionInfoSizeA");
+        GetFileVersionInfoSizeExA = GetProcAddress(dll, "GetFileVersionInfoSizeExA");
+        GetFileVersionInfoSizeExW = GetProcAddress(dll, "GetFileVersionInfoSizeExW");
+        GetFileVersionInfoSizeW = GetProcAddress(dll, "GetFileVersionInfoSizeW");
+        GetFileVersionInfoW = GetProcAddress(dll, "GetFileVersionInfoW");
+        VerFindFileA = GetProcAddress(dll, "VerFindFileA");
+        VerFindFileW = GetProcAddress(dll, "VerFindFileW");
+        VerInstallFileA = GetProcAddress(dll, "VerInstallFileA");
+        VerInstallFileW = GetProcAddress(dll, "VerInstallFileW");
+        VerLanguageNameA = GetProcAddress(dll, "VerLanguageNameA");
+        VerLanguageNameW = GetProcAddress(dll, "VerLanguageNameW");
+        VerQueryValueA = GetProcAddress(dll, "VerQueryValueA");
+        VerQueryValueW = GetProcAddress(dll, "VerQueryValueW");
     }
-} dinput8;
+} version;
 
 typedef HRESULT(*fn_DirectInput8Create)(HINSTANCE hinst, DWORD dwVersion, REFIID riidltf, LPVOID * ppvOut, LPUNKNOWN punkOuter);
 
-void _DirectInput8Create() { 
-    (fn_DirectInput8Create)dinput8.DirectInput8Create();
-}
+void _GetFileVersionInfoA() { version.GetFileVersionInfoA(); }
+void _GetFileVersionInfoByHandle() { version.GetFileVersionInfoByHandle(); }
+void _GetFileVersionInfoExA() { version.GetFileVersionInfoExA(); }
+void _GetFileVersionInfoExW() { version.GetFileVersionInfoExW(); }
+void _GetFileVersionInfoSizeA() { version.GetFileVersionInfoSizeA(); }
+void _GetFileVersionInfoSizeExA() { version.GetFileVersionInfoSizeExA(); }
+void _GetFileVersionInfoSizeExW() { version.GetFileVersionInfoSizeExW(); }
+void _GetFileVersionInfoSizeW() { version.GetFileVersionInfoSizeW(); }
+void _GetFileVersionInfoW() { version.GetFileVersionInfoW(); }
+void _VerFindFileA() { version.VerFindFileA(); }
+void _VerFindFileW() { version.VerFindFileW(); }
+void _VerInstallFileA() { version.VerInstallFileA(); }
+void _VerInstallFileW() { version.VerInstallFileW(); }
+void _VerLanguageNameA() { version.VerLanguageNameA(); }
+void _VerLanguageNameW() { version.VerLanguageNameW(); }
+void _VerQueryValueA() { version.VerQueryValueA(); }
+void _VerQueryValueW() { version.VerQueryValueW(); }
 
 void _DllRegisterServer() {
     shared.DllRegisterServer();
@@ -290,11 +337,11 @@ void LoadOriginalLibrary() {
     auto szSystemPath = SHGetKnownFolderPath(FOLDERID_System, 0, nullptr) + L'\\' + szSelfName;
     auto szLocalPath = GetModuleFileNameW(hm); 
     szLocalPath = szLocalPath.substr(0, szLocalPath.find_last_of(L"/\\") + 1);
-    szLocalPath += L"dinput8Hooked.dll";
+    szLocalPath += L"versionHooked.dll";
     if (std::filesystem::exists(szLocalPath)) {
-        dinput8.LoadOriginalLibrary(LoadLib(szLocalPath));
+        version.LoadOriginalLibrary(LoadLib(szLocalPath));
     } else {
-        dinput8.LoadOriginalLibrary(LoadLib(szSystemPath));
+        version.LoadOriginalLibrary(LoadLib(szSystemPath));
     }
 }
 
@@ -510,7 +557,7 @@ HRESULT WINAPI CustomCoCreateInstance(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWOR
     HRESULT hr = REGDB_E_KEYMISSING;
     HMODULE hDll = NULL;
 
-    hDll = ::LoadLibrary(L"dinput8.dll");
+    hDll = ::LoadLibrary(L"version.dll");
 
     if (hDll == NULL || GetProcAddress(hDll, "IsUltimateASILoader") != NULL)
         return ::CoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
@@ -672,7 +719,7 @@ bool HookKernel32IAT(HMODULE mod, bool exe) {
     };
 
     auto PatchCoCreateInstance = [&](size_t start, size_t end, size_t exe_end) {
-        if (iequals(GetSelfName(), L"dinput8.dll")) return;
+        if (iequals(GetSelfName(), L"version.dll")) return;
 
         for (size_t i = 0; i < nNumImports; i++) {
             if (hExecutableInstance + (pImports + i)->FirstThunk > start && !(end && hExecutableInstance + (pImports + i)->FirstThunk > end)) end = hExecutableInstance + (pImports + i)->FirstThunk;
@@ -736,44 +783,6 @@ bool HookKernel32IAT(HMODULE mod, bool exe) {
         }
     }
 
-    // Fixing ordinals
-    auto szSelfName = GetSelfName();
-
-    static auto PatchOrdinals = [&szSelfName](size_t hInstance) {
-        IMAGE_NT_HEADERS*           ntHeader = (IMAGE_NT_HEADERS*)(hInstance + ((IMAGE_DOS_HEADER*)hInstance)->e_lfanew);
-        IMAGE_IMPORT_DESCRIPTOR*    pImports = (IMAGE_IMPORT_DESCRIPTOR*)(hInstance + ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
-        size_t                      nNumImports = ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size / sizeof(IMAGE_IMPORT_DESCRIPTOR) - 1;
-
-        if (nNumImports == (size_t)-1) return;
-
-        for (size_t i = 0; i < nNumImports; i++) {
-            if ((size_t)(hInstance + (pImports + i)->Name) < getSectionEnd(ntHeader, (size_t)hInstance)) {
-                if (iequals(szSelfName, (to_wstring((const char*)(hInstance + (pImports + i)->Name))))) {
-                    PIMAGE_THUNK_DATA thunk = (PIMAGE_THUNK_DATA)(hInstance + (pImports + i)->OriginalFirstThunk);
-                    size_t j = 0;
-                    while (thunk->u1.Function) {
-                        if (thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG) {
-                            PIMAGE_IMPORT_BY_NAME import = (PIMAGE_IMPORT_BY_NAME)(hInstance + thunk->u1.AddressOfData);
-                            void** p = (void**)(hInstance + (pImports + i)->FirstThunk);
-                            DWORD Protect;
-                            VirtualProtect(&p[j], 4, PAGE_EXECUTE_READWRITE, &Protect);
-
-                            if ((IMAGE_ORDINAL(thunk->u1.Ordinal)) == 1) p[j] = _DirectInput8Create;
-                            ++j;
-                        }
-                        ++thunk;
-                    }
-                    break;
-                }
-            }
-        }
-    };
-
-    ModuleList dlls;
-    dlls.Enumerate(ModuleList::SearchLocation::LocalOnly);
-    for (auto& e : dlls.m_moduleList) {
-        PatchOrdinals((size_t)std::get<HMODULE>(e));
-    }
     return matchedImports > 0;
 }
 
