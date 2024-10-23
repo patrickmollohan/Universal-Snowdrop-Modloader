@@ -43,8 +43,7 @@ struct version_dll {
     FARPROC VerQueryValueA;
     FARPROC VerQueryValueW;
 
-    void LoadOriginalLibrary(HMODULE module)
-    {
+    void LoadOriginalLibrary(HMODULE module) {
         dll = module;
         shared.LoadOriginalLibrary(dll);
         GetFileVersionInfoA = GetProcAddress(dll, "GetFileVersionInfoA");
@@ -67,50 +66,33 @@ struct version_dll {
     }
 } version;
 
-typedef HRESULT(*fn_DirectInput8Create)(HINSTANCE hinst, DWORD dwVersion, REFIID riidltf, LPVOID * ppvOut, LPUNKNOWN punkOuter);
+void ASILoader::_GetFileVersionInfoA() { version.GetFileVersionInfoA(); }
+void ASILoader::_GetFileVersionInfoByHandle() { version.GetFileVersionInfoByHandle(); }
+void ASILoader::_GetFileVersionInfoExA() { version.GetFileVersionInfoExA(); }
+void ASILoader::_GetFileVersionInfoExW() { version.GetFileVersionInfoExW(); }
+void ASILoader::_GetFileVersionInfoSizeA() { version.GetFileVersionInfoSizeA(); }
+void ASILoader::_GetFileVersionInfoSizeExA() { version.GetFileVersionInfoSizeExA(); }
+void ASILoader::_GetFileVersionInfoSizeExW() { version.GetFileVersionInfoSizeExW(); }
+void ASILoader::_GetFileVersionInfoSizeW() { version.GetFileVersionInfoSizeW(); }
+void ASILoader::_GetFileVersionInfoW() { version.GetFileVersionInfoW(); }
+void ASILoader::_VerFindFileA() { version.VerFindFileA(); }
+void ASILoader::_VerFindFileW() { version.VerFindFileW(); }
+void ASILoader::_VerInstallFileA() { version.VerInstallFileA(); }
+void ASILoader::_VerInstallFileW() { version.VerInstallFileW(); }
+void ASILoader::_VerLanguageNameA() { version.VerLanguageNameA(); }
+void ASILoader::_VerLanguageNameW() { version.VerLanguageNameW(); }
+void ASILoader::_VerQueryValueA() { version.VerQueryValueA(); }
+void ASILoader::_VerQueryValueW() { version.VerQueryValueW(); }
 
-void _GetFileVersionInfoA() { version.GetFileVersionInfoA(); }
-void _GetFileVersionInfoByHandle() { version.GetFileVersionInfoByHandle(); }
-void _GetFileVersionInfoExA() { version.GetFileVersionInfoExA(); }
-void _GetFileVersionInfoExW() { version.GetFileVersionInfoExW(); }
-void _GetFileVersionInfoSizeA() { version.GetFileVersionInfoSizeA(); }
-void _GetFileVersionInfoSizeExA() { version.GetFileVersionInfoSizeExA(); }
-void _GetFileVersionInfoSizeExW() { version.GetFileVersionInfoSizeExW(); }
-void _GetFileVersionInfoSizeW() { version.GetFileVersionInfoSizeW(); }
-void _GetFileVersionInfoW() { version.GetFileVersionInfoW(); }
-void _VerFindFileA() { version.VerFindFileA(); }
-void _VerFindFileW() { version.VerFindFileW(); }
-void _VerInstallFileA() { version.VerInstallFileA(); }
-void _VerInstallFileW() { version.VerInstallFileW(); }
-void _VerLanguageNameA() { version.VerLanguageNameA(); }
-void _VerLanguageNameW() { version.VerLanguageNameW(); }
-void _VerQueryValueA() { version.VerQueryValueA(); }
-void _VerQueryValueW() { version.VerQueryValueW(); }
+void ASILoader::_DllRegisterServer() { shared.DllRegisterServer(); }
+void ASILoader::_DllUnregisterServer() { shared.DllUnregisterServer(); }
+void ASILoader::_DllCanUnloadNow() { shared.DllCanUnloadNow(); }
+void ASILoader::_DllGetClassObject() { shared.DllGetClassObject(); }
 
-void _DllRegisterServer() {
-    shared.DllRegisterServer();
-}
-
-void _DllUnregisterServer() {
-    shared.DllUnregisterServer();
-}
-
-void _DllCanUnloadNow() {
-    shared.DllCanUnloadNow();
-}
-
-void _DllGetClassObject() {
-    shared.DllGetClassObject();
-}
-
-bool WINAPI IsUltimateASILoader() {
-    return true;
-}
+bool WINAPI ASILoader::IsUltimateASILoader() { return true; }
 
 void* ogMemModule = NULL;
-void* WINAPI GetMemoryModule() {
-    return ogMemModule;
-}
+void* WINAPI ASILoader::GetMemoryModule() { return ogMemModule; }
 
 HMODULE hm;
 std::vector<std::wstring> iniPaths;
@@ -552,7 +534,6 @@ void WINAPI CustomAcquireSRWLockExclusive(PSRWLOCK SRWLock) {
     return AcquireSRWLockExclusive(SRWLock);
 }
 
-DEFINE_GUID(CLSID_DirectInput8, 0x25E609E4, 0xB259, 0x11CF, 0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00);
 HRESULT WINAPI CustomCoCreateInstance(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv) {
     HRESULT hr = REGDB_E_KEYMISSING;
     HMODULE hDll = NULL;
