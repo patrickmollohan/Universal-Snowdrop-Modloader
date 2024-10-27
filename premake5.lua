@@ -82,4 +82,5 @@ project "Ultimate-SWO-ModLoader"
    filter "configurations:Release"
       defines { "NDEBUG" }
       optimize "On"
+      buildoptions { "/Ox" }
       staticruntime "On"
