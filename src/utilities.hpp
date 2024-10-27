@@ -36,5 +36,11 @@ public:
     public:
         static uintptr_t FindPatternAddress(const unsigned char* pattern, size_t patternLength);
         static uintptr_t FindPatternAddressMask(const unsigned char* pattern, const unsigned char* mask, size_t patternLength);
+        static std::string GetExeName();
+    };
+
+    class String {
+    public:
+        static bool EqualsIgnoreCase(const std::string& str1, const std::string& str2);
     };
 };

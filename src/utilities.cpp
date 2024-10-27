@@ -80,3 +80,19 @@ uintptr_t Utilities::Processes::FindPatternAddressMask(const unsigned char* patt
     }
     return 0;
 }
+
+std::string Utilities::Processes::GetExeName() {
+    char exePath[MAX_PATH];
+    GetModuleFileNameA(NULL, exePath, sizeof(exePath));
+
+    std::string exeName = std::string(exePath);
+    size_t pos = exeName.find_last_of("\\/");
+    if (pos != std::string::npos) {
+        exeName = exeName.substr(pos + 1);
+    }
+    return exeName;
+}
+
+bool Utilities::String::EqualsIgnoreCase(const std::string& str1, const std::string& str2) {
+    return str1.size() == str2.size() && std::equal(str1.begin(), str1.end(), str2.begin(), [](char a, char b) { return std::tolower(a) == std::tolower(b); });
+}

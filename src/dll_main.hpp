@@ -8,3 +8,4 @@
 #include "disk_cache_enabler.hpp"
 #include "minhook_handler.hpp"
 #include "mod_loader.hpp"
+#include "utilities.hpp"
