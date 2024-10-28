@@ -37,6 +37,7 @@ public:
         static uintptr_t FindPatternAddress(const unsigned char* pattern, size_t patternLength);
         static uintptr_t FindPatternAddressMask(const unsigned char* pattern, const unsigned char* mask, size_t patternLength);
         static std::string GetExeName();
+        static void SetHighPriority();
     };
 
     class String {

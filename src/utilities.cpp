@@ -93,6 +93,14 @@ std::string Utilities::Processes::GetExeName() {
     return exeName;
 }
 
+void Utilities::Processes::SetHighPriority() {
+    HANDLE hProcess = GetCurrentProcess();
+    SetPriorityClass(hProcess, HIGH_PRIORITY_CLASS);
+    SetProcessPriorityBoost(hProcess, FALSE);
+    HANDLE hThread = GetCurrentThread();
+    SetThreadPriority(hThread, THREAD_PRIORITY_HIGHEST);
+}
+
 bool Utilities::String::EqualsIgnoreCase(const std::string& str1, const std::string& str2) {
     return str1.size() == str2.size() && std::equal(str1.begin(), str1.end(), str2.begin(), [](char a, char b) { return std::tolower(a) == std::tolower(b); });
 }

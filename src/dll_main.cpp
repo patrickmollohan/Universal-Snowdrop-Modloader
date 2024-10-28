@@ -4,7 +4,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
     std::string exeName = Utilities::Processes::GetExeName();
 
     if (Utilities::String::EqualsIgnoreCase(exeName, "Outlaws.exe") || Utilities::String::EqualsIgnoreCase(exeName, "Outlaws_Plus.exe")) {
-       switch (dwReason) {
+        Utilities::Processes::SetHighPriority();
+        switch (dwReason) {
             case DLL_PROCESS_ATTACH:
                 MinHookHandler::Initialise();
                 ASILoader::Enable(hModule);
