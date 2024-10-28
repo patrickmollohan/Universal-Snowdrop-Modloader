@@ -26,6 +26,9 @@ Since this modloader is based on Ultimate ASI Loader, you can put additional ASI
 
 This DLL now also enables the use of Windows's file caching, which should result in less hard drive activity over time. This may allow the game to run on HDDs and should also result in slightly better SSD performance as well.
 
+## CPU and I/O Priority
+For additional speed, the DLL now also sets process and thread priority to high for Outlaws, reducing stuttering and lag spikes due to other processes in the background.
+
 ## CREDITS
 
 ThirteenAG - [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
