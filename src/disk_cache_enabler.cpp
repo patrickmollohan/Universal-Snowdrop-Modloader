@@ -64,18 +64,22 @@ HANDLE DiskCacheEnabler::CreateFileW_hook(
 }
 
 bool DiskCacheEnabler::Enable() {
-    if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileA),
-        &CreateFileA_hook,
-        reinterpret_cast<LPVOID*>(&CreateFileA_orig)) != MH_OK) {
-        MessageBoxA(NULL, "Failed to create hook for CreateFileA!", "Dank farrik!", MB_OK);
-        return false;
+    if (Settings::CreateFileA) {
+        if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileA),
+            &CreateFileA_hook,
+            reinterpret_cast<LPVOID*>(&CreateFileA_orig)) != MH_OK) {
+            MessageBoxA(NULL, "Failed to create hook for CreateFileA!", "Dank farrik!", MB_OK);
+            return false;
+        }
     }
 
-    if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileW),
-        &CreateFileW_hook,
-        reinterpret_cast<LPVOID*>(&CreateFileW_orig)) != MH_OK) {
-        MessageBoxA(NULL, "Failed to create hook for CreateFileW!", "Dank farrik!", MB_OK);
-        return false;
+    if (Settings::CreateFileW) {
+        if (MH_CreateHook(reinterpret_cast<LPVOID>(CreateFileW),
+            &CreateFileW_hook,
+            reinterpret_cast<LPVOID*>(&CreateFileW_orig)) != MH_OK) {
+            MessageBoxA(NULL, "Failed to create hook for CreateFileW!", "Dank farrik!", MB_OK);
+            return false;
+        }
     }
     return true;
 }

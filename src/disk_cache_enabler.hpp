@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <Windows.h>
 #include <MinHook.h>
+#include "settings.hpp"
 
 class DiskCacheEnabler {
 public:

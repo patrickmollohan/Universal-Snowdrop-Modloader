@@ -6,12 +6,12 @@ newoption {
 }
 
 workspace "Ultimate-SWO-ModLoader"
-   configurations { "Release", "Debug" }
+   configurations { "Release" }
    architecture "x86_64"
    location "build"
    cppdialect "C++latest"
    exceptionhandling ("SEH")
-   
+
    defines {
       "rsc_CompanyName=\"Patrick Mollohan\"",
       "rsc_LegalCopyright=\"MIT License\"",
@@ -45,7 +45,7 @@ workspace "Ultimate-SWO-ModLoader"
       "rsc_FileVersion=\"" .. major .. "." .. minor .. "." .. build .. "\"",
       "rsc_ProductVersion=\"" .. major .. "." .. minor .. "." .. build .. "\""
    }
-     
+
 project "Ultimate-SWO-ModLoader"
    kind "SharedLib"
    language "C++"
@@ -55,29 +55,25 @@ project "Ultimate-SWO-ModLoader"
 
    includedirs {
       "lib",
-      "lib/injector/minhook/include",
-      "lib/injector/utility",
+	  "lib/MinHook/include",
       "src"
    }
 
    files {
-      "lib/injector/minhook/include/*.h", "lib/injector/minhook/src/**.h", "lib/injector/minhook/src/**.c",
-      "lib/injector/utility/FunctionHookMinHook.hpp", "lib/injector/utility/FunctionHookMinHook.cpp",
-      "src/asi_loader.hpp", "src/asi_loader.cpp",
-      "src/version.def",
-      "src/disk_cache_enabler.hpp", "src/disk_cache_enabler.cpp",
-      "src/dll_main.hpp", "src/dll_main.cpp",
-      "src/minhook_handler.hpp", "src/minhook_handler.cpp",
-      "src/mod_loader.hpp", "src/mod_loader.cpp",
-      "src/utilities.hpp", "src/utilities.cpp",
+      "lib/MinHook/include/*.h", "lib/MinHook/src/**.c", "lib/MinHook/src/**.h",
+      "src/disk_cache_enabler.cpp", "src/disk_cache_enabler.hpp",
+      "src/dll_main.cpp", "src/dll_main.hpp",
+      "src/minhook_handler.cpp", "src/minhook_handler.hpp",
+      "src/mod_loader.cpp", "src/mod_loader.hpp",
+	  "src/script_loader.cpp", "src/script_loader.hpp",
+	  "src/settings.cpp", "src/settings.hpp",
+      "src/utilities.cpp", "src/utilities.hpp",
+	  "src/version.def",
+	  "src/version_wrapper.cpp", "src/version_wrapper.hpp",
       "src/Versioninfo.rc"
    }
 
    characterset ("UNICODE")
-   
-   filter "configurations:Debug"
-      defines { "DEBUG" }
-      symbols "On"
 
    filter "configurations:Release"
       defines { "NDEBUG" }

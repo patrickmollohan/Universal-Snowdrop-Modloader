@@ -1,20 +1,22 @@
 #include "dll_main.hpp"
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
-    std::string exeName = Utilities::Processes::GetExeName();
+    VersionWrapper::Initialise();
+    Utilities::SettingsParser::SetConfigFilePath(hModule);
+    Settings::LoadSettings();
+    Utilities::Processes::SetHighPriority();
 
+    std::string exeName = Utilities::Processes::GetExeName();
     if (Utilities::String::EqualsIgnoreCase(exeName, "Outlaws.exe") || Utilities::String::EqualsIgnoreCase(exeName, "Outlaws_Plus.exe")) {
-        Utilities::Processes::SetHighPriority();
         switch (dwReason) {
             case DLL_PROCESS_ATTACH:
                 MinHookHandler::Initialise();
-                ASILoader::Enable(hModule);
                 DiskCacheEnabler::Enable();
                 ModLoader::Enable();
                 MinHookHandler::EnableAllHooks();
+                ScriptLoader::LoadScripts();
                 break;
             case DLL_PROCESS_DETACH:
-                ASILoader::Disable();
                 DiskCacheEnabler::Disable();
                 ModLoader::Disable();
                 MinHookHandler::Shutdown();

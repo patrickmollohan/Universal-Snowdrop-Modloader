@@ -4,7 +4,7 @@
 
 ## DESCRIPTION
 
-This is a DLL file based on Ultimate ASI Loader that adds mod support and ASI plugin loading functionality. Additionally, it enables disk caching, resulting in better hard drive performance over time.
+This is a DLL file that adds mod support and script loading functionality. Additionally, it enables disk caching, resulting in better hard drive performance over time.
 
 ## INSTALLATION
 
@@ -18,17 +18,19 @@ You can use programs such as DTZxPorter's [Hunter](https://dtzxporter.com/tools/
 
 Note: texture replacement currently does not work, as file streaming is not yet supported.
 
-## ASI LOADING
+## SCRIPT LOADING
 
-Since this modloader is based on Ultimate ASI Loader, you can put additional ASI files in the "scripts" folder in the root directory of the game to add functionality to the game. If the folder does not exist (it doesn't by default), create it.
+To add functionality to the game, you can put additional DLL or ASI files in the "scripts" folder in the root directory of the game, allowing you to execute arbitrary code. If the folder does not exist (it doesn't by default), create it.
 
 ## DISK CACHE ENABLER
 
 This DLL now also enables the use of Windows's file caching, which should result in less hard drive activity over time. This may allow the game to run on HDDs and should also result in slightly better SSD performance as well.
 
-## CREDITS
+## CPU and I/O Priority
 
-ThirteenAG - [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)
+For additional speed, the DLL now also sets process and thread priority to high for Outlaws, reducing stuttering and lag spikes due to other processes in the background.
+
+## CREDITS
 
 TsudaKageyu - [MinHook](https://github.com/TsudaKageyu/minhook)
 
