@@ -1,6 +1,0 @@
-[submodule "lib/MemoryModule"]
-	path = lib/MemoryModule
-	url = https://github.com/fancycode/MemoryModule
-[submodule "lib/injector"]
-	path = lib/injector
-	url = https://github.com/ThirteenAG/injector
