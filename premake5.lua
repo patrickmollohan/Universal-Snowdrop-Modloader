@@ -1,11 +1,11 @@
 newoption {
     trigger     = "with-version",
     value       = "STRING",
-    description = "Ultimate Star Wars Outlaws ModLoader version",
+    description = "Universal Snowdrop Modloader version",
     default     = "1.0.0",
 }
 
-workspace "Ultimate-SWO-ModLoader"
+workspace "Universal-Snowdrop-Modloader"
    configurations { "Release" }
    architecture "x86_64"
    location "build"
@@ -16,13 +16,13 @@ workspace "Ultimate-SWO-ModLoader"
       "rsc_CompanyName=\"Patrick Mollohan\"",
       "rsc_LegalCopyright=\"MIT License\"",
       "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"version.dll\"",
-      "rsc_FileDescription=\"Ultimate Star Wars Outlaws ModLoader\"",
-      "rsc_UpdateUrl=\"https://github.com/patrickmollohan/Ultimate-SWO-ModLoader\""
+      "rsc_FileDescription=\"Universal Snowdrop Modloader\"",
+      "rsc_UpdateUrl=\"https://github.com/patrickmollohan/Universal-Snowdrop-Modloader\""
    }
 
    local major = 1
    local minor = 0
-   local build = 3
+   local build = 0
    local revision = 0
 
    if(_OPTIONS["with-version"]) then
@@ -46,7 +46,7 @@ workspace "Ultimate-SWO-ModLoader"
       "rsc_ProductVersion=\"" .. major .. "." .. minor .. "." .. build .. "\""
    }
 
-project "Ultimate-SWO-ModLoader"
+project "Universal-Snowdrop-Modloader"
    kind "SharedLib"
    language "C++"
    targetdir "bin/%{cfg.buildcfg}"
@@ -55,7 +55,7 @@ project "Ultimate-SWO-ModLoader"
 
    includedirs {
       "lib",
-	  "lib/MinHook/include",
+	   "lib/MinHook/include",
       "src"
    }
 
@@ -65,11 +65,11 @@ project "Ultimate-SWO-ModLoader"
       "src/dll_main.cpp", "src/dll_main.hpp",
       "src/minhook_handler.cpp", "src/minhook_handler.hpp",
       "src/mod_loader.cpp", "src/mod_loader.hpp",
-	  "src/script_loader.cpp", "src/script_loader.hpp",
-	  "src/settings.cpp", "src/settings.hpp",
+	   "src/script_loader.cpp", "src/script_loader.hpp",
+	   "src/settings.cpp", "src/settings.hpp",
       "src/utilities.cpp", "src/utilities.hpp",
-	  "src/version.def",
-	  "src/version_wrapper.cpp", "src/version_wrapper.hpp",
+	   "src/version.def",
+	   "src/version_wrapper.cpp", "src/version_wrapper.hpp",
       "src/Versioninfo.rc"
    }
 
