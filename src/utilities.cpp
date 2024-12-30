@@ -1,5 +1,12 @@
 #include "utilities.hpp"
 
+const char* Utilities::Processes::allowedExes[] = {
+    "Outlaws.exe",
+    "Outlaws_Plus.exe",
+    "AFOP.exe",
+    "AFOP_Plus.exe"
+};
+
 bool Utilities::Files::LocalFileExists(LPCSTR file_path) {
     DWORD dwAttrib = GetFileAttributesA(file_path);
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
@@ -93,12 +100,59 @@ std::string Utilities::Processes::GetExeName() {
     return exeName;
 }
 
-void Utilities::Processes::SetHighPriority() {
+bool Utilities::Processes::IsCompatibleExe() {
+    std::string exeName = Utilities::Processes::GetExeName();
+    for (const char* allowedExe : allowedExes) {
+        if (Utilities::String::EqualsIgnoreCase(exeName, allowedExe)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Utilities::Processes::SetPriorityLevels() {
     HANDLE hProcess = GetCurrentProcess();
-    SetPriorityClass(hProcess, HIGH_PRIORITY_CLASS);
-    SetProcessPriorityBoost(hProcess, FALSE);
     HANDLE hThread = GetCurrentThread();
-    SetThreadPriority(hThread, THREAD_PRIORITY_HIGHEST);
+
+    // Set CPU Priority
+    SetProcessPriorityBoost(hProcess, FALSE);
+    if (Settings::CPUPriority == "normal") {
+        SetPriorityClass(hProcess, NORMAL_PRIORITY_CLASS);
+    } else if (Settings::CPUPriority == "medium") {
+        SetPriorityClass(hProcess, ABOVE_NORMAL_PRIORITY_CLASS);
+    } else if (Settings::CPUPriority == "high") {
+        SetPriorityClass(hProcess, HIGH_PRIORITY_CLASS);
+    }
+
+    // Set Thread Priority
+    if (Settings::ThreadPriority == "normal") {
+        SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
+    } else if (Settings::ThreadPriority == "medium") {
+        SetThreadPriority(hThread, THREAD_PRIORITY_ABOVE_NORMAL);
+    } else if (Settings::ThreadPriority == "high") {
+        SetThreadPriority(hThread, THREAD_PRIORITY_HIGHEST);
+    }
+
+    // Set IO Priority
+    HMODULE hNtDll = LoadLibrary(L"ntdll.dll");
+    if (hNtDll) {
+        auto NtSetInformationThread = (NtSetInformationThread_t)GetProcAddress(hNtDll, "NtSetInformationThread");
+        if (NtSetInformationThread) {
+            IO_PRIORITY_HINT ioPriorityHint = IoPriorityNormal;
+
+            if (Settings::IOPriority == "high") {
+                ioPriorityHint = IoPriorityHigh;
+            }
+
+            NTSTATUS status = NtSetInformationThread(
+                hThread,
+                ThreadIoPriority,
+                &ioPriorityHint,
+                sizeof(IO_PRIORITY_HINT)
+            );
+        }
+        FreeLibrary(hNtDll);
+    }
 }
 
 std::string Utilities::SettingsParser::configFilePath = "";
@@ -126,7 +180,7 @@ bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std
     DWORD length = GetPrivateProfileStringA(
         section.c_str(),
         key.c_str(),
-        defaultValue ? "true" : "false", // Default value
+        defaultValue ? "true" : "false",
         result,
         sizeof(result),
         configFilePath.c_str()
@@ -145,7 +199,7 @@ bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std
     value.erase(value.find_last_not_of(" \t") + 1); // Right trim
 
     // Convert to lowercase for case-insensitive comparison
-    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    Utilities::String::ToLower(value);
 
     // Interpret the result as a boolean
     return value == "true" || value == "1" || value == "yes" || value == "on";
@@ -211,4 +265,10 @@ std::string Utilities::SettingsParser::GetString(const std::string& section, con
 
 bool Utilities::String::EqualsIgnoreCase(const std::string& str1, const std::string& str2) {
     return str1.size() == str2.size() && std::equal(str1.begin(), str1.end(), str2.begin(), [](char a, char b) { return std::tolower(a) == std::tolower(b); });
+}
+
+void Utilities::String::ToLower(std::string& str) {
+    for (size_t i = 0; i < str.size(); ++i) {
+        str[i] = std::tolower(static_cast<unsigned char>(str[i]));
+    }
 }

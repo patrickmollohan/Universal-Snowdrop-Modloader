@@ -4,10 +4,27 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include <Windows.h>
-#include <algorithm>
 #include <string>
+#include <winternl.h>
+#include "settings.hpp"
 
 #define PATTERN_WILDCARD 0x00
+#define ThreadIoPriority (THREADINFOCLASS)21
+
+typedef enum _IO_PRIORITY_HINT {
+    IoPriorityVeryLow = 0,
+    IoPriorityLow,
+    IoPriorityNormal,
+    IoPriorityHigh,
+    IoPriorityCritical
+} IO_PRIORITY_HINT;
+
+typedef NTSTATUS(NTAPI* NtSetInformationThread_t)(
+    HANDLE ThreadHandle,
+    THREADINFOCLASS ThreadInformationClass,
+    PVOID ThreadInformation,
+    ULONG ThreadInformationLength
+);
 
 class Utilities {
 public:
@@ -26,8 +43,8 @@ public:
         MainModule();
         ~MainModule();
         
-        uintptr_t GetBaseAddress() const; // Gets the module base address
-        uintptr_t GetCodeSize() const; // Gets the size of code reported by the PE header
+        uintptr_t GetBaseAddress() const;
+        uintptr_t GetCodeSize() const;
         size_t Begin() const;
         size_t End() const;
         std::string GetModulePath() const;
@@ -38,7 +55,11 @@ public:
         static uintptr_t FindPatternAddress(const unsigned char* pattern, size_t patternLength);
         static uintptr_t FindPatternAddressMask(const unsigned char* pattern, const unsigned char* mask, size_t patternLength);
         static std::string GetExeName();
-        static void SetHighPriority();
+        static bool IsCompatibleExe();
+        static void SetPriorityLevels();
+
+    private:
+        static const char* allowedExes[];
     };
 
     class SettingsParser {
@@ -55,5 +76,6 @@ public:
     class String {
     public:
         static bool EqualsIgnoreCase(const std::string& str1, const std::string& str2);
+        static void ToLower(std::string& str);
     };
 };
