@@ -45,33 +45,33 @@ jobs:
 
     - name: Build
       run: |
-        msbuild -m build/Ultimate-SWO-ModLoader.sln /property:Configuration=Release /property:Platform=x64
+        msbuild -m build/Universal-Snowdrop-Modloader.sln /property:Configuration=Release /property:Platform=x64
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Ultimate-SWO-ModLoader
+        name: Universal-Snowdrop-Modloader
         path: dist/dll/*
 
     - name: Upload Release (Main)
       if: |
         github.ref_name == 'master' &&
         github.event_name == 'push' &&
-        github.repository == 'patrickmollohan/Ultimate-SWO-ModLoader'
+        github.repository == 'patrickmollohan/Universal-Snowdrop-Modloader'
       uses: ncipollo/release-action@main
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         allowUpdates: false
-        name: Ultimate Star Wars Outlaws ModLoader v${{ steps.versioning.outputs.version }}
+        name: Universal Snowdrop Modloader v${{ steps.versioning.outputs.version }}
         bodyFile: "release.md"
         tag: v${{ steps.versioning.outputs.version }}
-        artifacts: bin/Ultimate-SWO-ModLoader.zip
+        artifacts: bin/Universal-Snowdrop-Modloader.zip
 
     - name: Get release info
       if: |
         github.ref_name == 'master' &&
         github.event_name == 'push' &&
-        github.repository == 'patrickmollohan/Ultimate-SWO-ModLoader'
+        github.repository == 'patrickmollohan/Universal-Snowdrop-Modloader'
       id: release_info_x64
       uses: cardinalby/git-get-release-action@master
       env:
@@ -83,7 +83,7 @@ jobs:
       if: |
         github.ref_name == 'master' &&
         github.event_name == 'push' &&
-        github.repository == 'patrickmollohan/Ultimate-SWO-ModLoader'
+        github.repository == 'patrickmollohan/Universal-Snowdrop-Modloader'
       uses: ncipollo/release-action@main
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
