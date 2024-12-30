@@ -56,6 +56,8 @@ public:
         static uintptr_t FindPatternAddressMask(const unsigned char* pattern, const unsigned char* mask, size_t patternLength);
         static std::string GetExeName();
         static bool IsCompatibleExe();
+        static bool IsGameAvatar();
+        static bool IsGameOutlaws();
         static void SetPriorityLevels();
 
     private:

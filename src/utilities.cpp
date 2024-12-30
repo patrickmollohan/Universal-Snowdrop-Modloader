@@ -110,6 +110,18 @@ bool Utilities::Processes::IsCompatibleExe() {
     return false;
 }
 
+bool Utilities::Processes::IsGameAvatar() {
+    std::string exeName = Utilities::Processes::GetExeName();
+    return (Utilities::String::EqualsIgnoreCase(exeName, "AFOP.exe") ||
+            Utilities::String::EqualsIgnoreCase(exeName, "AFOP_Plus.exe"));
+}
+
+bool Utilities::Processes::IsGameOutlaws() {
+    std::string exeName = Utilities::Processes::GetExeName();
+    return (Utilities::String::EqualsIgnoreCase(exeName, "Outlaws.exe") ||
+            Utilities::String::EqualsIgnoreCase(exeName, "Outlaws_Plus.exe"));
+}
+
 void Utilities::Processes::SetPriorityLevels() {
     HANDLE hProcess = GetCurrentProcess();
     HANDLE hThread = GetCurrentThread();

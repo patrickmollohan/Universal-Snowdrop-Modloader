@@ -17,6 +17,7 @@ public:
 private:
     static bool __fastcall HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags);
 
-    static const unsigned char pattern[];
-    static const unsigned char mask[];
+    static int pattern_size;
+    static unsigned char* pattern;
+    static unsigned char* mask;
 };
