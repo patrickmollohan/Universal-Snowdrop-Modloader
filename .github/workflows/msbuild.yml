@@ -1,6 +1,13 @@
 name: GitHub Actions Build
 
 on:
+  workflow_dispatch:  # This allows you to trigger the workflow manually
+    inputs:
+      version:
+        description: 'The version of the release (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
   push:
     paths-ignore:
       - "**/*.md"
@@ -36,7 +43,7 @@ jobs:
       uses: MCKanpolat/auto-semver-action@v2
       id: versioning
       with:
-        releaseType: minor 
+        releaseType: minor
         incrementPerCommit: false
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -47,48 +54,30 @@ jobs:
       run: |
         msbuild -m build/Universal-Snowdrop-Modloader.sln /property:Configuration=Release /property:Platform=x64
 
+    - name: Prepare files for packaging
+      run: |
+        mkdir dist
+        copy bin/Release/version.dll dist/
+        copy version.ini dist/
+
+    - name: Zip the files
+      run: |
+        pwsh -Command "Compress-Archive -Path dist/version.dll,dist/version.ini -DestinationPath dist/Universal-Snowdrop-Modloader.zip"
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: Universal-Snowdrop-Modloader
-        path: dist/dll/*
+        path: dist/Universal-Snowdrop-Modloader.zip
 
     - name: Upload Release (Main)
       if: |
-        github.ref_name == 'master' &&
-        github.event_name == 'push' &&
-        github.repository == 'patrickmollohan/Universal-Snowdrop-Modloader'
+        github.ref_name == 'refs/tags/${{ github.event.inputs.version }}'
       uses: ncipollo/release-action@main
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         allowUpdates: false
-        name: Universal Snowdrop Modloader v${{ steps.versioning.outputs.version }}
+        name: Universal Snowdrop Modloader ${{ github.event.inputs.version }}
         bodyFile: "release.md"
-        tag: v${{ steps.versioning.outputs.version }}
-        artifacts: bin/Universal-Snowdrop-Modloader.zip
-
-    - name: Get release info
-      if: |
-        github.ref_name == 'master' &&
-        github.event_name == 'push' &&
-        github.repository == 'patrickmollohan/Universal-Snowdrop-Modloader'
-      id: release_info_x64
-      uses: cardinalby/git-get-release-action@master
-      env:
-       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag: x64-latest
-
-    - name: Upload Release
-      if: |
-        github.ref_name == 'master' &&
-        github.event_name == 'push' &&
-        github.repository == 'patrickmollohan/Universal-Snowdrop-Modloader'
-      uses: ncipollo/release-action@main
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        allowUpdates: true
-        name: ${{ steps.release_info_x64.outputs.name }}
-        body: ${{ steps.release_info_x64.outputs.body }}
-        tag: ${{ steps.release_info_x64.outputs.tag_name }}
-        artifacts: dist/zip/*.zip
+        tag: ${{ github.event.inputs.version }}
+        artifacts: dist/Universal-Snowdrop-Modloader.zip
