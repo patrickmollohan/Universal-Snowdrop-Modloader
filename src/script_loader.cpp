@@ -2,14 +2,20 @@
 
 void ScriptLoader::LoadScripts() {
     if (Settings::EnableScripts) {
+        // Get the full path of the scripts directory
         wchar_t gameRoot[MAX_PATH];
         GetModuleFileNameW(NULL, gameRoot, MAX_PATH);
-
         std::wstring gameRootPath = gameRoot;
         gameRootPath = gameRootPath.substr(0, gameRootPath.find_last_of(L"\\"));
-
         std::wstring scriptsPath = gameRootPath + L"\\scripts";
 
+        // If the scripts directory doesn't exist, create it
+        DWORD attributes = GetFileAttributesW(scriptsPath.c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            CreateDirectoryW(scriptsPath.c_str(), NULL);
+        }
+
+        // Load scripts from the scripts directory
         LoadScriptsFromDirectory(scriptsPath);
     }
 }
