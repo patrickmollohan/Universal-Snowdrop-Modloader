@@ -1,12 +1,5 @@
 #include "utilities.hpp"
 
-const char* Utilities::Processes::allowedExes[] = {
-    "Outlaws.exe",
-    "Outlaws_Plus.exe",
-    "AFOP.exe",
-    "AFOP_Plus.exe"
-};
-
 bool Utilities::Files::LocalFileExists(LPCSTR file_path) {
     DWORD dwAttrib = GetFileAttributesA(file_path);
     return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
@@ -88,7 +81,7 @@ uintptr_t Utilities::Processes::FindPatternAddressMask(const unsigned char* patt
     return 0;
 }
 
-std::string Utilities::Processes::GetExeName() {
+void Utilities::Processes::SetExeName() {
     char exePath[MAX_PATH];
     GetModuleFileNameA(NULL, exePath, sizeof(exePath));
 
@@ -97,29 +90,20 @@ std::string Utilities::Processes::GetExeName() {
     if (pos != std::string::npos) {
         exeName = exeName.substr(pos + 1);
     }
-    return exeName;
+
+    DLLMain::exeName = exeName;
 }
 
 bool Utilities::Processes::IsCompatibleExe() {
-    std::string exeName = Utilities::Processes::GetExeName();
-    for (const char* allowedExe : allowedExes) {
-        if (Utilities::String::EqualsIgnoreCase(exeName, allowedExe)) {
-            return true;
-        }
-    }
-    return false;
+    return (DLLMain::gameID != GAME_UNSUPPORTED);
 }
 
 bool Utilities::Processes::IsGameAvatar() {
-    std::string exeName = Utilities::Processes::GetExeName();
-    return (Utilities::String::EqualsIgnoreCase(exeName, "AFOP.exe") ||
-            Utilities::String::EqualsIgnoreCase(exeName, "AFOP_Plus.exe"));
+    return (DLLMain::gameID == GAME_AVATAR);
 }
 
 bool Utilities::Processes::IsGameOutlaws() {
-    std::string exeName = Utilities::Processes::GetExeName();
-    return (Utilities::String::EqualsIgnoreCase(exeName, "Outlaws.exe") ||
-            Utilities::String::EqualsIgnoreCase(exeName, "Outlaws_Plus.exe"));
+    return (DLLMain::gameID == GAME_OUTLAWS);
 }
 
 void Utilities::Processes::SetPriorityLevels() {
@@ -164,6 +148,14 @@ void Utilities::Processes::SetPriorityLevels() {
             );
         }
         FreeLibrary(hNtDll);
+    }
+}
+
+void Utilities::Processes::SetGameID() {
+    if (Utilities::String::Contains(DLLMain::exeName, "Avatar", true)) {
+        DLLMain::gameID = GAME_AVATAR;
+    } else if (Utilities::String::Contains(DLLMain::exeName, "Outlaws", true)) {
+        DLLMain::gameID = GAME_OUTLAWS;
     }
 }
 
@@ -273,6 +265,16 @@ std::string Utilities::SettingsParser::GetString(const std::string& section, con
     value.erase(value.find_last_not_of(" \t") + 1); // Right trim
 
     return value;
+}
+
+bool Utilities::String::Contains(const std::string& str, const std::string& substr, bool ignoreCase) {
+    std::string tempStr = str;
+    std::string tempSubstr = substr;
+    if (ignoreCase) {
+        Utilities::String::ToLower(tempStr);
+        Utilities::String::ToLower(tempSubstr);
+    }
+    return tempStr.find(tempSubstr) != std::string::npos;
 }
 
 bool Utilities::String::EqualsIgnoreCase(const std::string& str1, const std::string& str2) {

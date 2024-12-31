@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <string>
 #include <winternl.h>
+#include "dll_main.hpp"
 #include "settings.hpp"
 
 #define PATTERN_WILDCARD 0x00
@@ -54,14 +55,12 @@ public:
     public:
         static uintptr_t FindPatternAddress(const unsigned char* pattern, size_t patternLength);
         static uintptr_t FindPatternAddressMask(const unsigned char* pattern, const unsigned char* mask, size_t patternLength);
-        static std::string GetExeName();
         static bool IsCompatibleExe();
         static bool IsGameAvatar();
         static bool IsGameOutlaws();
+        static void SetExeName();
+        static void SetGameID();
         static void SetPriorityLevels();
-
-    private:
-        static const char* allowedExes[];
     };
 
     class SettingsParser {
@@ -77,6 +76,7 @@ public:
 
     class String {
     public:
+        static bool Contains(const std::string& str, const std::string& substr, bool ignoreCase);
         static bool EqualsIgnoreCase(const std::string& str1, const std::string& str2);
         static void ToLower(std::string& str);
     };
