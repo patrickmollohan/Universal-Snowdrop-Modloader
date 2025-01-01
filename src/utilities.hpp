@@ -72,6 +72,7 @@ public:
         static int GetInt(const std::string& section, const std::string& key, int defaultValue);
         static std::string GetString(const std::string& section, const std::string& key, const std::string& defaultValue);
         static void SetConfigFilePath(HMODULE hModule);
+        static std::string StripCommentsAndTrim(const std::string& value);
     };
 
     class String {

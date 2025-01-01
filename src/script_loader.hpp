@@ -5,7 +5,9 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 #include <windows.h>
+
 #include "settings.hpp"
 
 class ScriptLoader {

@@ -181,7 +181,7 @@ void Utilities::SettingsParser::SetConfigFilePath(HMODULE hModule) {
 
 bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std::string& key, bool defaultValue) {
     char result[256];
-    DWORD length = GetPrivateProfileStringA(
+    GetPrivateProfileStringA(
         section.c_str(),
         key.c_str(),
         defaultValue ? "true" : "false",
@@ -191,16 +191,7 @@ bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std
     );
 
     std::string value(result);
-
-    // Strip inline comments (anything after ';' or '#')
-    size_t commentPos = value.find_first_of(";#");
-    if (commentPos != std::string::npos) {
-        value = value.substr(0, commentPos);
-    }
-
-    // Trim whitespace from the value
-    value.erase(0, value.find_first_not_of(" \t")); // Left trim
-    value.erase(value.find_last_not_of(" \t") + 1); // Right trim
+    value = Utilities::SettingsParser::StripCommentsAndTrim(result);
 
     // Convert to lowercase for case-insensitive comparison
     Utilities::String::ToLower(value);
@@ -211,39 +202,29 @@ bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std
 
 int Utilities::SettingsParser::GetInt(const std::string& section, const std::string& key, int defaultValue) {
     char result[256];
-    DWORD length = GetPrivateProfileStringA(
+    GetPrivateProfileStringA(
         section.c_str(),
         key.c_str(),
-        std::to_string(defaultValue).c_str(), // Default value as string
+        std::to_string(defaultValue).c_str(),
         result,
         sizeof(result),
         configFilePath.c_str()
     );
 
     std::string value(result);
-
-    // Strip inline comments (anything after ';' or '#')
-    size_t commentPos = value.find_first_of(";#");
-    if (commentPos != std::string::npos) {
-        value = value.substr(0, commentPos);
-    }
-
-    // Trim whitespace from the value
-    value.erase(0, value.find_first_not_of(" \t")); // Left trim
-    value.erase(value.find_last_not_of(" \t") + 1); // Right trim
+    value = Utilities::SettingsParser::StripCommentsAndTrim(result);
 
     // Convert to integer
     try {
         return std::stoi(value);
-    }
-    catch (...) {
-        return defaultValue; // Return default value if conversion fails
+    } catch (...) {
+        return defaultValue;
     }
 }
 
 std::string Utilities::SettingsParser::GetString(const std::string& section, const std::string& key, const std::string& defaultValue) {
     char result[256];
-    DWORD length = GetPrivateProfileStringA(
+    GetPrivateProfileStringA(
         section.c_str(),
         key.c_str(),
         defaultValue.c_str(),
@@ -253,18 +234,16 @@ std::string Utilities::SettingsParser::GetString(const std::string& section, con
     );
 
     std::string value(result);
-
-    // Strip inline comments (anything after ';' or '#')
-    size_t commentPos = value.find_first_of(";#");
-    if (commentPos != std::string::npos) {
-        value = value.substr(0, commentPos);
-    }
-
-    // Trim whitespace from the value
-    value.erase(0, value.find_first_not_of(" \t")); // Left trim
-    value.erase(value.find_last_not_of(" \t") + 1); // Right trim
+    value = Utilities::SettingsParser::StripCommentsAndTrim(result);
 
     return value;
+}
+
+std::string Utilities::SettingsParser::StripCommentsAndTrim(const std::string& value) {
+    auto result = value.substr(0, value.find_first_of(";#")); // Strip comments
+    result.erase(0, result.find_first_not_of(" \t"));         // Left trim
+    result.erase(result.find_last_not_of(" \t") + 1);         // Right trim
+    return result;
 }
 
 bool Utilities::String::Contains(const std::string& str, const std::string& substr, bool ignoreCase) {
@@ -282,7 +261,6 @@ bool Utilities::String::EqualsIgnoreCase(const std::string& str1, const std::str
 }
 
 void Utilities::String::ToLower(std::string& str) {
-    for (size_t i = 0; i < str.size(); ++i) {
-        str[i] = std::tolower(static_cast<unsigned char>(str[i]));
-    }
+    std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return std::tolower(c); });
 }
+
