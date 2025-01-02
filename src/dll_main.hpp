@@ -21,4 +21,5 @@ class DLLMain {
 public:
     static std::string exeName;
     static GameID gameID;
+    static bool initialised;
 };

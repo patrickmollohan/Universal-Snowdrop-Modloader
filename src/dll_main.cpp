@@ -2,35 +2,39 @@
 
 std::string DLLMain::exeName = "";
 GameID DLLMain::gameID = GAME_UNSUPPORTED;
+bool DLLMain::initialised = false;
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
-    VersionWrapper::Initialise();
-    Utilities::Processes::SetExeName();
-    Utilities::Processes::SetGameID();
-    if (Utilities::Processes::IsCompatibleExe()) {
-        Utilities::SettingsParser::SetConfigFilePath(hModule);
-        Settings::LoadSettings();
-        Utilities::Processes::SetPriorityLevels();
-
         switch (dwReason) {
         case DLL_PROCESS_ATTACH:
-            MinHookHandler::Initialise();
-            DiskCacheEnabler::Enable();
-            ModLoader::Enable();
-            MinHookHandler::EnableAllHooks();
-            ScriptLoader::LoadScripts();
+            VersionWrapper::Initialise();
+            Utilities::Processes::SetExeName();
+            Utilities::Processes::SetGameID();
+            if (Utilities::Processes::IsCompatibleExe() && !DLLMain::initialised) {
+                Utilities::SettingsParser::SetConfigFilePath(hModule);
+                Settings::LoadSettings();
+                Utilities::Processes::SetPriorityLevels();
+                MinHookHandler::Initialise();
+                DiskCacheEnabler::Enable();
+                ModLoader::Enable();
+                MinHookHandler::EnableAllHooks();
+                ScriptLoader::LoadScripts();
+                DLLMain::initialised = true;
+                return true;
+            }
             break;
         case DLL_PROCESS_DETACH:
-            DiskCacheEnabler::Disable();
-            ModLoader::Disable();
-            MinHookHandler::Shutdown();
+            if (Utilities::Processes::IsCompatibleExe() && DLLMain::initialised) {
+                DiskCacheEnabler::Disable();
+                ModLoader::Disable();
+                MinHookHandler::Shutdown();
+                DLLMain::initialised = false;
+            }
             break;
         case DLL_THREAD_ATTACH:
             break;
         case DLL_THREAD_DETACH:
             break;
         }
-        return TRUE;
-    }
-    return FALSE;
+    return false;
 }
