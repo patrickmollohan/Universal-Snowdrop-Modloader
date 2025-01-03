@@ -1,12 +1,16 @@
 name: GitHub Actions Build
 
 on:
-  workflow_dispatch:  # This allows you to trigger the workflow manually
+  workflow_dispatch:
     inputs:
       version:
         description: 'The version of the release (e.g., v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+        required: false
+        default: ''
+      create_release:
+        description: 'Set to "true" to create a GitHub release'
+        required: false
+        default: 'false'
 
   push:
     paths-ignore:
@@ -39,14 +43,6 @@ jobs:
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@main
 
-    - name: Auto Increment Version
-      uses: MCKanpolat/auto-semver-action@v2
-      id: versioning
-      with:
-        releaseType: minor
-        incrementPerCommit: false
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Configure build
       run: ./premake5 vs2022
 
@@ -70,9 +66,16 @@ jobs:
         name: Universal-Snowdrop-Modloader
         path: dist/Universal-Snowdrop-Modloader.zip
 
-    - name: Upload Release (Main)
-      if: |
-        github.ref_name == 'refs/tags/${{ github.event.inputs.version }}'
+  create_release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.create_release == 'true' && github.event.inputs.version != '' }}
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Upload Release to GitHub
       uses: ncipollo/release-action@main
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
