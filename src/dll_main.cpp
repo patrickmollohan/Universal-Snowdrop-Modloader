@@ -5,6 +5,8 @@ GameID DLLMain::gameID = GAME_UNSUPPORTED;
 bool DLLMain::initialised = false;
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
+        DisableThreadLibraryCalls(hModule);
+
         switch (dwReason) {
         case DLL_PROCESS_ATTACH:
             VersionWrapper::Initialise();
