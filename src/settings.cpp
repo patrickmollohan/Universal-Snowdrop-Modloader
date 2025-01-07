@@ -1,7 +1,7 @@
 #include "settings.hpp"
 
-bool Settings::EnableMods = false;
-bool Settings::EnableScripts = false;
+bool Settings::EnableMods = true;
+bool Settings::EnableScripts = true;
 bool Settings::CreateFileA = false;
 bool Settings::CreateFileW = false;
 std::string Settings::CPUPriority = "normal";
@@ -11,8 +11,8 @@ std::string Settings::ThreadPriority = "normal";
 void Settings::LoadSettings() {
     using SettingsParser = Utilities::SettingsParser;
 
-    EnableMods = SettingsParser::GetBoolean("Settings", "EnableMods", false);
-    EnableScripts = SettingsParser::GetBoolean("Settings", "EnableScripts", false);
+    EnableMods = SettingsParser::GetBoolean("Settings", "EnableMods", true);
+    EnableScripts = SettingsParser::GetBoolean("Settings", "EnableScripts", true);
     CreateFileA = SettingsParser::GetBoolean("DiskCacheEnabler", "CreateFileA", false);
     CreateFileW = SettingsParser::GetBoolean("DiskCacheEnabler", "CreateFileW", false);
     CPUPriority = SettingsParser::GetString("Priorities", "CPUPriority", "normal");
