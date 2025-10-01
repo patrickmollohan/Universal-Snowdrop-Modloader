@@ -1,17 +1,17 @@
 #include "mod_loader.hpp"
 
-ModLoader::open_file_stream_proc ModLoader::oldOpenFileStream = nullptr;
+ModLoader::load_file_t ModLoader::OrigLoadFile = nullptr;
 
 int ModLoader::pattern_size;
 unsigned char* ModLoader::pattern;
 unsigned char* ModLoader::mask;
 
-bool __fastcall ModLoader::HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags) {
-    if (Utilities::Files::LocalFileExists(file_path)) {
+bool __fastcall ModLoader::HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags) {
+    if (Utilities::Files::LocalFileExists(filePath)) {
         flags |= (1 << 0xA);
     }
 
-    return oldOpenFileStream(stream, file_path, flags);
+    return OrigLoadFile(fileCtx, filePath, flags);
 }
 
 bool ModLoader::Enable() {
@@ -27,14 +27,14 @@ bool ModLoader::Enable() {
         mask    = new unsigned char[pattern_size] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF };
     }
 
-    uintptr_t openFileStreamAddress = Utilities::Processes::FindPatternAddressMask(pattern, mask, pattern_size);
-    if (!openFileStreamAddress) {
-        MessageBoxA(NULL, "OpenFileStream pattern not found. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
+    uintptr_t loadFileAddr = Utilities::Processes::FindPatternAddressMask(pattern, mask, pattern_size);
+    if (!loadFileAddr) {
+        MessageBoxA(NULL, "LoadFile pattern not found. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
         return false;
     }
-    oldOpenFileStream = reinterpret_cast<open_file_stream_proc>(openFileStreamAddress);
-    if (MH_CreateHook(oldOpenFileStream, &HookOpenFileStream, reinterpret_cast<LPVOID*>(&oldOpenFileStream)) != MH_OK) {
-        MessageBoxA(NULL, "Failed to create hook for OpenFileStream. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
+    OrigLoadFile = reinterpret_cast<load_file_t>(loadFileAddr);
+    if (MH_CreateHook(OrigLoadFile, &HookedLoadFile, reinterpret_cast<LPVOID*>(&OrigLoadFile)) != MH_OK) {
+        MessageBoxA(NULL, "Failed to create hook for LoadFile. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -42,7 +42,7 @@ bool ModLoader::Enable() {
 }
 
 void ModLoader::Disable() {
-    if (oldOpenFileStream) {
-        MH_DisableHook(oldOpenFileStream);
+    if (OrigLoadFile) {
+        MH_DisableHook(OrigLoadFile);
     }
 }
