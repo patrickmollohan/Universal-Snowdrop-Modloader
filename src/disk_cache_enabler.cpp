@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "disk_cache_enabler.hpp"
 
 // Original function pointers

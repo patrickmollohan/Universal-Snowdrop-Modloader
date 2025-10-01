@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "script_loader.hpp"
 
 void ScriptLoader::LoadScripts() {

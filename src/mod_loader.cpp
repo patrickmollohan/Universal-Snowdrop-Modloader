@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "mod_loader.hpp"
 
 ModLoader::load_file_t ModLoader::OrigLoadFile = nullptr;

@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "utilities.hpp"
 
 bool Utilities::Files::LocalFileExists(LPCSTR file_path) {

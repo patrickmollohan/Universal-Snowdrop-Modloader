@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "settings.hpp"
 
 bool Settings::EnableMods = true;

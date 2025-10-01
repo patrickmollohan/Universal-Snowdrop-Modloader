@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "dll_main.hpp"
 
 std::string DLLMain::exeName = "";

@@ -1,11 +1,5 @@
 #pragma once
 
-#define VC_EXTRALEAN
-#define WIN32_LEAN_AND_MEAN
-
-#include <Windows.h>
-#include <string>
-#include <winternl.h>
 #include "dll_main.hpp"
 #include "settings.hpp"
 
