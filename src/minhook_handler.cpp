@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "minhook_handler.hpp"
 
 bool MinHookHandler::mhInitialised = false;

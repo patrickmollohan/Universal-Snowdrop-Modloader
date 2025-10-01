@@ -1,7 +1,5 @@
 #pragma once
 
-#include <MinHook.h>
-
 class MinHookHandler {
 public:
     static bool Initialise();

@@ -1,3 +1,4 @@
+#include "pch.hpp"
 #include "version_wrapper.hpp"
 
 HINSTANCE VersionWrapper::m_hinst_dll = nullptr;
