@@ -1,6 +1,6 @@
 #include "mod_loader.hpp"
 
-ModLoader::open_file_stream_proc oldOpenFileStream = nullptr;
+ModLoader::open_file_stream_proc ModLoader::oldOpenFileStream = nullptr;
 
 int ModLoader::pattern_size;
 unsigned char* ModLoader::pattern;

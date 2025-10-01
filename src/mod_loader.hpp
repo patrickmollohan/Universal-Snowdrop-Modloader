@@ -12,12 +12,14 @@ public:
     static bool Enable();
     static void Disable();
 
-    typedef bool(__fastcall* open_file_stream_proc)(__int64 stream, LPCSTR file_path, unsigned int flags);
-
 private:
+    using open_file_stream_proc = bool(__fastcall*)(__int64 stream, LPCSTR file_path, unsigned int flags);
+
     static bool __fastcall HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags);
 
     static int pattern_size;
     static unsigned char* pattern;
     static unsigned char* mask;
+
+	static open_file_stream_proc oldOpenFileStream;
 };
