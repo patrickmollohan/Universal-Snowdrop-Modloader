@@ -13,11 +13,10 @@ public:
     static void Disable();
 
 private:
-    using open_file_stream_proc = bool(__fastcall*)(uintptr_t stream, LPCSTR file_path, unsigned int flags);
+    using load_file_t = bool(__fastcall*)(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags);
+    static load_file_t OrigLoadFile;
+    static bool __fastcall HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags);
 
-    static bool __fastcall HookOpenFileStream(uintptr_t stream, LPCSTR file_path, unsigned int flags);
-
-    static open_file_stream_proc oldOpenFileStream;
     static int pattern_size;
     static unsigned char* pattern;
     static unsigned char* mask;
