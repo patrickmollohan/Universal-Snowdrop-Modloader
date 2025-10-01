@@ -28,8 +28,7 @@ HANDLE DiskCacheEnabler::CreateFileA_hook(
     DWORD                 dwFlagsAndAttributes,
     HANDLE                hTemplateFile) {
 
-    dwFlagsAndAttributes &= ~(FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN);
-    dwFlagsAndAttributes |= FILE_FLAG_RANDOM_ACCESS;
+    dwFlagsAndAttributes &= ~FILE_FLAG_NO_BUFFERING;
 
     return CreateFileA_orig(
         lpFilename,
@@ -50,8 +49,7 @@ HANDLE DiskCacheEnabler::CreateFileW_hook(
     DWORD                 dwFlagsAndAttributes,
     HANDLE                hTemplateFile) {
 
-    dwFlagsAndAttributes &= ~(FILE_FLAG_NO_BUFFERING | FILE_FLAG_SEQUENTIAL_SCAN);
-    dwFlagsAndAttributes |= FILE_FLAG_RANDOM_ACCESS;
+    dwFlagsAndAttributes &= ~FILE_FLAG_NO_BUFFERING;
 
     return CreateFileW_orig(
         lpFilename,
