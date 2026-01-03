@@ -15,10 +15,10 @@
 
 #define DLL_COMMENTS "May the Force be with you, always!"
 #define DLL_COMPANY_NAME "Patrick Mollohan"
-#define DLL_FILE_DESCRIPTION "A universal framework for modloader creation using DLL proxying."
-#define DLL_INTERNAL_NAME "Universal-Modloader-Core"
+#define DLL_FILE_DESCRIPTION "Adds mod support and plugin loading functionality to Snowdrop Engine games."
+#define DLL_INTERNAL_NAME "Universal-Snowdrop-Modloader"
 #define DLL_LEGAL_COPYRIGHT "MIT License"
-#define DLL_ORIGINAL_FILENAME "Universal-Modloader-Core.dll"
-#define DLL_PRODUCT_NAME "Universal Modloader Core"
+#define DLL_ORIGINAL_FILENAME "version.dll"
+#define DLL_PRODUCT_NAME "Universal Snowdrop Modloader"
 #define DLL_PRODUCT_VERSION DLL_VERSION_STRING
-#define DLL_UPDATE_URL "https://github.com/patrickmollohan/Universal-Modloader-Core"
+#define DLL_UPDATE_URL "https://github.com/patrickmollohan/Universal-Snowdrop-Modloader"

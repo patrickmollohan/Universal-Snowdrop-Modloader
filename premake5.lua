@@ -1,11 +1,10 @@
-workspace "Universal-Modloader-Core"
+workspace "Universal-Snowdrop-Modloader"
     architecture "x86_64"
     location "build"
     cppdialect "C++latest"
     exceptionhandling "SEH"
 
     configurations {
-        "d3d11",
         "dinput8",
         "version"
     }
@@ -14,7 +13,6 @@ workspace "Universal-Modloader-Core"
 -- Proxy configuration map
 -- =========================================
 local ProxyMap = {
-    ["d3d11"] = { name="d3d11",  def="src/wrappers/d3d11.def",  define="D3D11" },
     ["dinput8"] = { name="dinput8",  def="src/wrappers/dinput8.def",  define="DINPUT8" },
     ["version"] = { name="version", def="src/wrappers/version.def", define="VERSION" }
 }
@@ -42,9 +40,9 @@ project "MinHook"
         buildoptions { "/Ox", "/fp:fast" }
 
 -- =========================================
--- Universal Modloader Core
+-- Universal Snowdrop Modloader
 -- =========================================
-project "Universal-Modloader-Core"
+project "Universal-Snowdrop-Modloader"
     kind "SharedLib"
     language "C++"
     targetextension ".dll"
@@ -68,8 +66,8 @@ project "Universal-Modloader-Core"
     links { "MinHook" }
 
     -- defaults
-    targetname "d3d11"
-    linkoptions { "/DEF:\"%{wks.location}/../src/wrappers/d3d11.def\"" }
+    targetname "version"
+    linkoptions { "/DEF:\"%{wks.location}/../src/wrappers/version.def\"" }
 
     for cfg, data in pairs(ProxyMap) do
         filter { "configurations:" .. cfg }
@@ -84,17 +82,11 @@ project "Universal-Modloader-Core"
             flags { "linktimeoptimization" }
             buildoptions { "/Ox", "/fp:fast" }
     end
-    
-    filter { "configurations:d3d11" }
-        removefiles { "include/wrappers/dinput8.hpp", "src/wrappers/dinput8.def", "src/wrappers/dinput8.cpp" }
-        removefiles { "include/wrappers/version.hpp", "src/wrappers/version.def", "src/wrappers/version.cpp" }
-        
+
     filter { "configurations:dinput8" }
-        removefiles { "include/wrappers/d3d11.hpp", "src/wrappers/d3d11.def", "src/wrappers/d3d11.cpp" }
         removefiles { "include/wrappers/version.hpp", "src/wrappers/version.def", "src/wrappers/version.cpp" }
         
     filter { "configurations:version" }
-        removefiles { "include/wrappers/d3d11.hpp", "src/wrappers/d3d11.def", "src/wrappers/d3d11.cpp" }
         removefiles { "include/wrappers/dinput8.hpp", "src/wrappers/dinput8.def", "src/wrappers/dinput8.cpp" }
 
     filter {}
