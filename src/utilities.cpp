@@ -58,9 +58,7 @@ bool Utilities::PatternScanner::HasWildcards(const std::vector<PatternByte>& pat
 uintptr_t Utilities::PatternScanner::FindPattern(const char* pat) {
     auto compiled = CompilePattern(pat);
 
-    return HasWildcards(compiled)
-        ? FindPatternBMHWildcard(g_ExeInfo.image, compiled)
-        : FindPatternBMH(g_ExeInfo.image, compiled);
+    return FindPatternBMHWildcard(g_ExeInfo.image, compiled);
 }
 
 uintptr_t Utilities::PatternScanner::FindPatternBMH(std::span<const std::byte> img, const std::vector<PatternByte>& pattern) {

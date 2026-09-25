@@ -36,8 +36,8 @@ project "MinHook"
     filter "configurations:*"
         optimize "On"
         staticruntime "On"
-        flags { "linktimeoptimization" }
         buildoptions { "/Ox", "/fp:fast" }
+        linktimeoptimization ("On")
 
 -- =========================================
 -- Universal Snowdrop Modloader
@@ -79,7 +79,7 @@ project "Universal-Snowdrop-Modloader"
             defines { data.define, "NDEBUG" }
             optimize "On"
             staticruntime "On"
-            flags { "linktimeoptimization" }
+            linktimeoptimization ("On")
             buildoptions { "/Ox", "/fp:fast" }
     end
 
