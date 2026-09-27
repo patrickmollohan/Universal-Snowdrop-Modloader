@@ -6,7 +6,7 @@
 
 This is a DLL file that adds mod support and plugin loading functionality for Snowdrop engine games.
 
-Currently, Star Wars Outlaws and Avatar: Frontiers of Pandora are supported.
+Currently, only Star Wars Outlaws and Avatar: Frontiers of Pandora are supported.
 
 ## INSTALLATION
 
@@ -17,8 +17,6 @@ To install, extract [version.zip](https://github.com/patrickmollohan/Universal-S
 After installing Universal Snowdrop Modloader, you may copy any modified game files relative to the root directory of the game. Be sure to keep file names and folder structures the same! You can toggle mod support on or off via the "Settings" section of "version.ini".
 
 You can use programs such as DTZxPorter's [Hunter](https://dtzxporter.com/tools/hunter) to extract the game files.
-
-Note: file streaming is not yet supported, so custom assets that are streamed such as mipmaps and LOD meshes are ignored.
 
 ## PLUGIN LOADING
 
