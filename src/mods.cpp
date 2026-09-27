@@ -3,9 +3,9 @@
 
 Mods::load_file_t Mods::origLoadFilePtr = nullptr;
 Mods::stream_t Mods::origStreamingPtr = nullptr;
-volatile uint8_t* Mods::streamingFlag = nullptr;
+volatile uint8_t* Mods::noMeshStreamingFlag = nullptr;
 
-volatile uint8_t* Mods::FindStreamingFlag() {
+volatile uint8_t* Mods::FindNoMeshStreamingFlag() {
     uintptr_t anchor = Utilities::PatternScanner::FindPattern("C6 05 ?? ?? ?? ?? ?? 40 38 35");
     if (!anchor) return nullptr;
 
@@ -44,12 +44,10 @@ bool Mods::LoadMods() {
         return false;
     }
 
-    streamingFlag = FindStreamingFlag();
-    if (!streamingFlag) {
-        MessageBoxA(NULL, "Could not locate the streaming flag. Streamed assets (meshes, etc.) will not be overridable; one-shot files are unaffected.", "Dank farrik!", MB_OK | MB_ICONWARNING);
-    }
-
-    if (!streamingPtr) {
+    noMeshStreamingFlag = FindNoMeshStreamingFlag();
+    if (!noMeshStreamingFlag) {
+        MessageBoxA(NULL, "Could not locate the nomeshstreaming flag. Streamed assets (meshes, etc.) will not be overridable; one-shot files are unaffected.", "Dank farrik!", MB_OK | MB_ICONWARNING);
+    } else if (!streamingPtr) {
         MessageBoxA(NULL, "Could not locate the streaming function. Streamed assets (meshes, etc.) will not be overridable; one-shot files are unaffected.", "Dank farrik!", MB_OK | MB_ICONWARNING);
     } else {
         origStreamingPtr = reinterpret_cast<stream_t>(streamingPtr);
@@ -68,15 +66,20 @@ bool Mods::UnloadMods() {
 }
 
 bool __fastcall Mods::HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags) {
-    if (Utilities::Files::FileExists(filePath)) {
+    if (Utilities::Files::FileExists(filePath)) [[unlikely]] {
         flags = (flags & ~0x2u) | 0x400u;
     }
+
     return origLoadFilePtr(fileCtx, filePath, flags);
 }
 
-__int64 __fastcall Mods::HookedStream(uintptr_t a1, LPCSTR path, uint8_t flag) {
-    if (streamingFlag) *streamingFlag = 1;
-    __int64 result = origStreamingPtr(a1, path, flag);
-    if (streamingFlag) *streamingFlag = 0;
-    return result;
+int64_t __fastcall Mods::HookedStream(uintptr_t a1, LPCSTR filePath, uint8_t flag) {
+    if (Utilities::Files::FileExists(filePath)) [[unlikely]] {
+        *noMeshStreamingFlag = 1;
+        int64_t result = origStreamingPtr(a1, filePath, flag);
+        *noMeshStreamingFlag = 0;
+        return result;
+    }
+
+    return origStreamingPtr(a1, filePath, flag);
 }
