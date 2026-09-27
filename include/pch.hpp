@@ -2,6 +2,7 @@
 
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 
 #include <atomic>
 #include <filesystem>

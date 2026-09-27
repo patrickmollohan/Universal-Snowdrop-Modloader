@@ -2,6 +2,7 @@
 #include "plugins.hpp"
 
 std::vector<HMODULE> loadedPlugins;
+std::vector<std::string> loadedPluginNames;
 
 bool Plugins::LoadPlugins() {
     if (!Settings::EnablePlugins) return false;
@@ -17,7 +18,10 @@ void Plugins::LoadPluginsFromDirectory(const std::wstring& directory) {
             std::filesystem::path filePath = entry.path();
             if (filePath.extension() == L".dll" || filePath.extension() == L".asi") {
                 HMODULE hPlugin = LoadLibraryW(filePath.c_str());
-                if (hPlugin != NULL) loadedPlugins.push_back(hPlugin);
+                if (hPlugin != NULL) {
+                    loadedPlugins.push_back(hPlugin);
+                    loadedPluginNames.push_back(filePath.filename().string());
+                }
             }
         }
     }
@@ -29,5 +33,10 @@ bool Plugins::UnloadPlugins() {
         if (hPlugin != NULL) FreeLibrary(hPlugin);
     }
     loadedPlugins.clear();
+    loadedPluginNames.clear();
     return true;
+}
+
+const std::vector<std::string>& Plugins::GetLoadedPluginNames() {
+    return loadedPluginNames;
 }

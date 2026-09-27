@@ -50,20 +50,32 @@ project "Universal-Snowdrop-Modloader"
     includedirs {
         "include",
         "include/wrappers",
-        "lib/MinHook/include"
+        "lib/MinHook/include",
+        "lib/ImGui",
+        "lib/ImGui/backends"
     }
 
     files {
         "include/**.hpp",
         "src/**.def",
         "src/**.cpp",
-        "src/**.rc"
+        "src/**.rc",
+        "lib/ImGui/imgui.cpp",
+        "lib/ImGui/imgui_draw.cpp",
+        "lib/ImGui/imgui_tables.cpp",
+        "lib/ImGui/imgui_widgets.cpp",
+        "lib/ImGui/backends/imgui_impl_win32.cpp",
+        "lib/ImGui/backends/imgui_impl_dx12.cpp"
     }
 
     pchheader "pch.hpp"
     pchsource "src/pch.cpp"
     characterset "UNICODE"
-    links { "MinHook" }
+    links { "MinHook", "d3d12", "dxgi" }
+
+    filter { "files:lib/ImGui/**.cpp" }
+        flags { "NoPCH" }
+    filter {}
 
     -- defaults
     targetname "version"

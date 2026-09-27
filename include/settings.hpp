@@ -9,4 +9,5 @@ public:
 
     static bool EnableMods;
     static bool EnablePlugins;
+    static bool EnableGUI;
 };

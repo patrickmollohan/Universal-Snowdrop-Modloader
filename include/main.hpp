@@ -1,6 +1,7 @@
 #pragma once
 
 #include "globals.hpp"
+#include "gui.hpp"
 #include "minhook.hpp"
 #include "mods.hpp"
 #include "plugins.hpp"

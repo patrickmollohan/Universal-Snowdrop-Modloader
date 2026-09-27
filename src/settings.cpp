@@ -3,12 +3,14 @@
 
 bool Settings::EnableMods;
 bool Settings::EnablePlugins;
+bool Settings::EnableGUI;
 
 void Settings::LoadSettings() {
     using SettingsParser = Utilities::SettingsParser;
 
     EnableMods = SettingsParser::GetBoolean("Settings", "EnableMods", true);
     EnablePlugins = SettingsParser::GetBoolean("Settings", "EnablePlugins", true);
+    EnableGUI = SettingsParser::GetBoolean("Settings", "EnableGUI", true);
 }
 
 LPCSTR Settings::GetConfigPath() {
