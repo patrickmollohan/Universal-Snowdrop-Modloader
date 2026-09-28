@@ -9,7 +9,7 @@ DWORD WINAPI Initialise(LPVOID) {
         Proxies::LoadProxy();
         Settings::LoadSettings();
         MinHook::LoadMinHook();
-        Mods::LoadMods();
+        Hooks::LoadHooks();
         GUI::Load();
         MinHook::EnableAllHooks();
         Plugins::LoadPlugins();
@@ -20,7 +20,7 @@ DWORD WINAPI Initialise(LPVOID) {
 
 void Cleanup() {
     std::call_once(cleanupFlag, []() {
-        Mods::UnloadMods();
+        Hooks::UnloadHooks();
         Plugins::UnloadPlugins();
         GUI::Unload();
         MinHook::UnloadMinHook();

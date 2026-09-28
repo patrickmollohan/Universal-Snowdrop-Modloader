@@ -1,11 +1,11 @@
 #include "pch.hpp"
-#include "mods.hpp"
+#include "hooks.hpp"
 
-Mods::load_file_t Mods::origLoadFilePtr = nullptr;
-Mods::stream_t Mods::origStreamingPtr = nullptr;
-volatile uint8_t* Mods::noMeshStreamingFlag = nullptr;
+Hooks::load_file_t Hooks::origLoadFilePtr = nullptr;
+Hooks::stream_t Hooks::origStreamingPtr = nullptr;
+volatile uint8_t* Hooks::noMeshStreamingFlag = nullptr;
 
-volatile uint8_t* Mods::FindNoMeshStreamingFlag() {
+volatile uint8_t* Hooks::FindNoMeshStreamingFlag() {
     uintptr_t anchor = Utilities::PatternScanner::FindPattern("C6 05 ?? ?? ?? ?? ?? 40 38 35");
     if (!anchor) return nullptr;
 
@@ -16,7 +16,7 @@ volatile uint8_t* Mods::FindNoMeshStreamingFlag() {
     return reinterpret_cast<volatile uint8_t*>(nextInstr + ripOffset);
 }
 
-bool Mods::LoadMods() {
+bool Hooks::LoadHooks() {
     if (!Settings::EnableMods) return false;
 
     uintptr_t loadFilePtr;
@@ -60,12 +60,12 @@ bool Mods::LoadMods() {
     return true;
 }
 
-bool Mods::UnloadMods() {
+bool Hooks::UnloadHooks() {
     if (!Settings::EnableMods) return false;
     return true;
 }
 
-bool __fastcall Mods::HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags) {
+bool __fastcall Hooks::HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags) {
     if (Utilities::Files::FileExists(filePath)) [[unlikely]] {
         flags = (flags & ~0x2u) | 0x400u;
     }
@@ -73,7 +73,7 @@ bool __fastcall Mods::HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigne
     return origLoadFilePtr(fileCtx, filePath, flags);
 }
 
-int64_t __fastcall Mods::HookedStream(uintptr_t a1, LPCSTR filePath, uint8_t flag) {
+int64_t __fastcall Hooks::HookedStream(uintptr_t a1, LPCSTR filePath, uint8_t flag) {
     if (Utilities::Files::FileExists(filePath)) [[unlikely]] {
         *noMeshStreamingFlag = 1;
         int64_t result = origStreamingPtr(a1, filePath, flag);

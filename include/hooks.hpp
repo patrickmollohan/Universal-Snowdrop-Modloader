@@ -4,10 +4,10 @@
 #include "minhook.hpp"
 #include "settings.hpp"
 
-class Mods {
+class Hooks {
 public:
-    static bool LoadMods();
-    static bool UnloadMods();
+    static bool LoadHooks();
+    static bool UnloadHooks();
 
 private:
     using load_file_t = bool(__fastcall*)(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags);
