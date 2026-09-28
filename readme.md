@@ -31,4 +31,5 @@ The toggle key can be changed by adding a "ToggleKey" entry under "[Settings]" i
 ## CREDITS
 
 TsudaKageyu - [MinHook](https://github.com/TsudaKageyu/minhook)
+
 ocornut - [Dear ImGui](https://github.com/ocornut/imgui)
