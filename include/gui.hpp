@@ -1,6 +1,7 @@
 #pragma once
 
 #include "globals.hpp"
+#include "plugin_api.hpp"
 
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -12,8 +13,9 @@ public:
 
     static bool Visible;
 
+    static const ModLoaderHostAPI* GetPluginHostAPI();
+
 private:
-    static constexpr UINT ToggleKey = VK_INSERT;
     static constexpr UINT BackBufferCount = 8;
 
     struct FrameContext {
@@ -35,6 +37,22 @@ private:
     static HWND gameWindow;
     static WNDPROC originalWndProc;
 
+public:
+    static void Host_Text(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static bool Host_Checkbox(ModLoaderPluginCtx* ctx, const char* label, bool* value);
+    static bool Host_SliderInt(ModLoaderPluginCtx* ctx, const char* label, int* value, int min, int max);
+    static bool Host_SliderFloat(ModLoaderPluginCtx* ctx, const char* label, float* value, float min, float max);
+    static bool Host_InputText(ModLoaderPluginCtx* ctx, const char* label, char* buf, size_t bufSize);
+    static bool Host_Button(ModLoaderPluginCtx* ctx, const char* label);
+    static void Host_Separator(ModLoaderPluginCtx* ctx);
+    static bool Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool defaultValue);
+    static int  Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int defaultValue);
+    static void Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool value);
+    static void Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int value);
+    static bool Host_SendCommand(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);
+    static void Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+
+private:
     static void InitialiseImGui(IDXGISwapChain3* swapChain);
     static void CreateRenderTargets(IDXGISwapChain3* swapChain);
     static void ReleaseRenderTargets();

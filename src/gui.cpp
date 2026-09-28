@@ -3,7 +3,10 @@
 #include "minhook.hpp"
 #include "plugins.hpp"
 #include "settings.hpp"
+#include "utilities.hpp"
 
+#include <cstdarg>
+#include <cstdio>
 #include <dxgi1_4.h>
 
 #include "../lib/ImGui/imgui.h"
@@ -36,7 +39,7 @@ bool GUI::FindTargetFunctions(void** presentFn, void** resizeBuffersFn, void** e
     wc.style = CS_CLASSDC;
     wc.lpfnWndProc = DefWindowProcW;
     wc.hInstance = GetModuleHandleW(nullptr);
-    wc.lpszClassName = L"USMLDummyWndClass";
+    wc.lpszClassName = L"ModloaderDummyWndClass";
     RegisterClassExW(&wc);
 
     HWND dummyWindow = CreateWindowExW(0, wc.lpszClassName, L"", WS_OVERLAPPEDWINDOW,
@@ -257,12 +260,112 @@ void GUI::RenderFrame(IDXGISwapChain3* swapChain) {
     commandQueue->ExecuteCommandLists(1, lists);
 }
 
+// ---------------------------------------------------------------------------
+// Plugin host API
+// ---------------------------------------------------------------------------
+
+void GUI::Host_Text(ModLoaderPluginCtx*, const char* fmt, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    ImGui::TextUnformatted(buffer);
+}
+
+bool GUI::Host_Checkbox(ModLoaderPluginCtx*, const char* label, bool* value) {
+    return ImGui::Checkbox(label, value);
+}
+
+bool GUI::Host_SliderInt(ModLoaderPluginCtx*, const char* label, int* value, int min, int max) {
+    return ImGui::SliderInt(label, value, min, max);
+}
+
+bool GUI::Host_SliderFloat(ModLoaderPluginCtx*, const char* label, float* value, float min, float max) {
+    return ImGui::SliderFloat(label, value, min, max);
+}
+
+bool GUI::Host_InputText(ModLoaderPluginCtx*, const char* label, char* buf, size_t bufSize) {
+    return ImGui::InputText(label, buf, bufSize);
+}
+
+bool GUI::Host_Button(ModLoaderPluginCtx*, const char* label) {
+    return ImGui::Button(label);
+}
+
+void GUI::Host_Separator(ModLoaderPluginCtx*) {
+    ImGui::Separator();
+}
+
+bool GUI::Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool defaultValue) {
+    if (!ctx) return defaultValue;
+    return Utilities::SettingsParser::GetBoolean(ctx->configSection, key, defaultValue);
+}
+
+int GUI::Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int defaultValue) {
+    if (!ctx) return defaultValue;
+    return Utilities::SettingsParser::GetInt(ctx->configSection, key, defaultValue);
+}
+
+void GUI::Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool value) {
+    if (!ctx) return;
+    WritePrivateProfileStringA(ctx->configSection.c_str(), key, value ? "true" : "false", Settings::GetConfigPath());
+}
+
+void GUI::Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int value) {
+    if (!ctx) return;
+    WritePrivateProfileStringA(ctx->configSection.c_str(), key, std::to_string(value).c_str(), Settings::GetConfigPath());
+}
+
+bool GUI::Host_SendCommand(ModLoaderPluginCtx*, const char* targetPlugin, const char* command) {
+    if (!targetPlugin || !command) return false;
+    return Plugins::SendCommand(targetPlugin, command);
+}
+
+void GUI::Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+
+    std::string line = "[" + (ctx ? ctx->configSection : std::string("Plugin")) + "] " + buffer;
+    OutputDebugStringA((line + "\n").c_str());
+
+    std::string logPath = (g_DllInfo.directory / "plugins.log").string();
+    if (FILE* f = fopen(logPath.c_str(), "a")) {
+        fprintf(f, "%s\n", line.c_str());
+        fclose(f);
+    }
+}
+
+static const ModLoaderHostAPI g_PluginHostAPI = {
+    MODLOADER_PLUGIN_API_VERSION,
+    &GUI::Host_Text,
+    &GUI::Host_Checkbox,
+    &GUI::Host_SliderInt,
+    &GUI::Host_SliderFloat,
+    &GUI::Host_InputText,
+    &GUI::Host_Button,
+    &GUI::Host_Separator,
+    &GUI::Host_GetConfigBool,
+    &GUI::Host_GetConfigInt,
+    &GUI::Host_SetConfigBool,
+    &GUI::Host_SetConfigInt,
+    &GUI::Host_SendCommand,
+    &GUI::Host_Log,
+};
+
+const ModLoaderHostAPI* GUI::GetPluginHostAPI() {
+    return &g_PluginHostAPI;
+}
+
 void GUI::DrawMenu() {
     ImGui::SetNextWindowSize(ImVec2(420, 340), ImGuiCond_FirstUseEver);
     ImGui::Begin("Universal Snowdrop Modloader", &Visible);
 
     ImGui::TextUnformatted(g_ExeInfo.filename.c_str());
-    ImGui::TextDisabled("INSERT to toggle this menu");
+    ImGui::TextDisabled("%s to toggle this menu", Settings::MenuToggleKeyName.c_str());
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -288,12 +391,32 @@ void GUI::DrawMenu() {
     }
 
     if (ImGui::CollapsingHeader("Plugins", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto& pluginNames = Plugins::GetLoadedPluginNames();
-        if (pluginNames.empty()) {
+        auto& plugins = Plugins::GetLoadedPlugins();
+
+        if (plugins.empty()) {
             ImGui::TextDisabled("No plugins loaded.");
         } else {
-            for (const auto& name : pluginNames) {
-                ImGui::BulletText("%s", name.c_str());
+            const float labelIndent = ImGui::GetTreeNodeToLabelSpacing();
+
+            for (int i = 0; i < static_cast<int>(plugins.size()); ++i) {
+                LoadedPlugin& plugin = plugins[i];
+                const bool hasMenu = plugin.apiInitialised && plugin.info.DrawMenu != nullptr;
+                const std::string label = (plugin.apiInitialised && plugin.info.name) ? plugin.info.name : plugin.fileName;
+
+                ImGui::PushID(i);
+
+                if (hasMenu) {
+                    if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_None)) {
+                        plugin.info.DrawMenu(&g_PluginHostAPI, plugin.ctx.get());
+                        ImGui::TreePop();
+                    }
+                } else {
+                    ImGui::Indent(labelIndent);
+                    ImGui::TextUnformatted(label.c_str());
+                    ImGui::Unindent(labelIndent);
+                }
+
+                ImGui::PopID();
             }
         }
     }
@@ -302,7 +425,7 @@ void GUI::DrawMenu() {
 }
 
 LRESULT CALLBACK GUI::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (msg == WM_KEYDOWN && wParam == ToggleKey) {
+    if (msg == WM_KEYDOWN && wParam == Settings::MenuToggleKey) {
         Visible = !Visible;
     }
 

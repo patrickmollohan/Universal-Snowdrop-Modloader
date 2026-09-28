@@ -10,4 +10,10 @@ public:
     static bool EnableMods;
     static bool EnablePlugins;
     static bool EnableGUI;
+
+    static UINT MenuToggleKey;
+    static std::string MenuToggleKeyName;
+
+private:
+    static UINT ParseVirtualKeyName(const std::string& name, UINT defaultValue);
 };

@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <memory>
 #include <minhook.h>
 #include <mutex>
 #include <span>
