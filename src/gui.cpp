@@ -1,17 +1,5 @@
 #include "pch.hpp"
 #include "gui.hpp"
-#include "minhook.hpp"
-#include "plugins.hpp"
-#include "settings.hpp"
-#include "utilities.hpp"
-
-#include <cstdarg>
-#include <cstdio>
-#include <dxgi1_4.h>
-
-#include "../lib/ImGui/imgui.h"
-#include "../lib/ImGui/backends/imgui_impl_win32.h"
-#include "../lib/ImGui/backends/imgui_impl_dx12.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -97,7 +85,7 @@ bool GUI::FindTargetFunctions(void** presentFn, void** resizeBuffersFn, void** e
     return success;
 }
 
-bool GUI::Load() {
+bool GUI::LoadGUI() {
     if (!Settings::EnableGUI) return false;
 
     void* presentFn = nullptr;
@@ -119,7 +107,7 @@ bool GUI::Load() {
     return true;
 }
 
-void GUI::Unload() {
+void GUI::UnloadGUI() {
     if (!initialised) return;
 
     if (gameWindow && originalWndProc) {

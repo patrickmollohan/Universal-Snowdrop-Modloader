@@ -1,15 +1,25 @@
 #pragma once
 
 #include "globals.hpp"
+#include "minhook.hpp"
 #include "plugin_api.hpp"
+#include "plugins.hpp"
+#include "settings.hpp"
+#include "utilities.hpp"
 
+#include <cstdarg>
+#include <cstdio>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 
+#include "../lib/ImGui/imgui.h"
+#include "../lib/ImGui/backends/imgui_impl_win32.h"
+#include "../lib/ImGui/backends/imgui_impl_dx12.h"
+
 class GUI {
 public:
-    static bool Load();
-    static void Unload();
+    static bool LoadGUI();
+    static void UnloadGUI();
 
     static bool Visible;
 
