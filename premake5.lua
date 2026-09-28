@@ -13,8 +13,8 @@ workspace "Universal-Snowdrop-Modloader"
 -- Proxy configuration map
 -- =========================================
 local ProxyMap = {
-    ["dinput8"] = { name="dinput8",  def="src/wrappers/dinput8.def",  define="DINPUT8" },
-    ["version"] = { name="version", def="src/wrappers/version.def", define="VERSION" }
+    ["dinput8"] = { name="dinput8",  def="src/proxies/dinput8.def",  define="DINPUT8" },
+    ["version"] = { name="version", def="src/proxies/version.def", define="VERSION" }
 }
 
 -- =========================================
@@ -49,7 +49,7 @@ project "Universal-Snowdrop-Modloader"
 
     includedirs {
         "include",
-        "include/wrappers",
+        "include/proxies",
         "lib/MinHook/include",
         "lib/ImGui",
         "lib/ImGui/backends"
@@ -79,7 +79,7 @@ project "Universal-Snowdrop-Modloader"
 
     -- defaults
     targetname "version"
-    linkoptions { "/DEF:\"%{wks.location}/../src/wrappers/version.def\"" }
+    linkoptions { "/DEF:\"%{wks.location}/../src/proxies/version.def\"" }
 
     for cfg, data in pairs(ProxyMap) do
         filter { "configurations:" .. cfg }
@@ -96,9 +96,9 @@ project "Universal-Snowdrop-Modloader"
     end
 
     filter { "configurations:dinput8" }
-        removefiles { "include/wrappers/version.hpp", "src/wrappers/version.def", "src/wrappers/version.cpp" }
+        removefiles { "include/proxies/version.hpp", "src/proxies/version.def", "src/proxies/version.cpp" }
         
     filter { "configurations:version" }
-        removefiles { "include/wrappers/dinput8.hpp", "src/wrappers/dinput8.def", "src/wrappers/dinput8.cpp" }
+        removefiles { "include/proxies/dinput8.hpp", "src/proxies/dinput8.def", "src/proxies/dinput8.cpp" }
 
     filter {}

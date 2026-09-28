@@ -2,7 +2,7 @@
 
 #include "globals.hpp"
 
-class Wrappers {
+class Proxies {
 public:
-    static BOOL LoadWrapper();
+    static BOOL LoadProxy();
 };

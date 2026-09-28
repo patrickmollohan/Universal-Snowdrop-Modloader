@@ -1,7 +1,7 @@
 #include "pch.hpp"
-#include "wrappers.hpp"
+#include "proxies.hpp"
 
-BOOL Wrappers::LoadWrapper() {
+BOOL Proxies::LoadProxy() {
     char sysdir[MAX_PATH];
     GetSystemDirectoryA(sysdir, MAX_PATH);
 

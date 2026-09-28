@@ -6,7 +6,7 @@ static std::once_flag cleanupFlag;
 
 DWORD WINAPI Initialise(LPVOID) {
     std::call_once(initFlag, []() {
-        Wrappers::LoadWrapper();
+        Proxies::LoadProxy();
         Settings::LoadSettings();
         MinHook::LoadMinHook();
         Mods::LoadMods();
