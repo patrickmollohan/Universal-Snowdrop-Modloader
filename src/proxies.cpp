@@ -6,7 +6,7 @@ BOOL Proxies::LoadProxy() {
     GetSystemDirectoryA(sysdir, MAX_PATH);
 
     char path[MAX_PATH];
-    snprintf(path, MAX_PATH, "%s\\%s", sysdir, g_DllInfo.filename);
+    snprintf(path, MAX_PATH, "%s\\%s", sysdir, g_DllInfo.filename.c_str());
 
     HMODULE dll = LoadLibraryA(path);
     if (!dll) return FALSE;

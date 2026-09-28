@@ -32,6 +32,14 @@ LPCSTR Settings::GetConfigPath() {
     return path.c_str();
 }
 
+bool Settings::IsPluginEnabled(const std::string& pluginFileName) {
+    return Utilities::SettingsParser::GetBoolean("Plugins", pluginFileName, true);
+}
+
+void Settings::SetPluginEnabled(const std::string& pluginFileName, bool enabled) {
+    Utilities::SettingsParser::SetBoolean("Plugins", pluginFileName, enabled);
+}
+
 UINT Settings::ParseVirtualKeyName(const std::string& name, UINT defaultValue) {
     if (name.empty()) return defaultValue;
 

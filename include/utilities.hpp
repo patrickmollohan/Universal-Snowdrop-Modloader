@@ -30,6 +30,14 @@ public:
         static bool GetBoolean(const std::string& section, const std::string& key, bool defaultValue);
         static int GetInt(const std::string& section, const std::string& key, int defaultValue);
         static std::string GetString(const std::string& section, const std::string& key, const std::string& defaultValue);
+
+        static bool GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue);
+        static int GetInt(const std::string& path, const std::string& section, const std::string& key, int defaultValue);
+        static std::string GetString(const std::string& path, const std::string& section, const std::string& key, const std::string& defaultValue);
+
+        static void SetBoolean(const std::string& section, const std::string& key, bool value);
+        static void SetBoolean(const std::string& path, const std::string& section, const std::string& key, bool value);
+        static void SetInt(const std::string& path, const std::string& section, const std::string& key, int value);
         static std::string StripCommentsAndTrim(const std::string& value);
     };
 

@@ -7,6 +7,9 @@ public:
     static void LoadSettings();
     static LPCSTR GetConfigPath();
 
+    static bool IsPluginEnabled(const std::string& pluginFileName);
+    static void SetPluginEnabled(const std::string& pluginFileName, bool enabled);
+
     static bool EnableMods;
     static bool EnablePlugins;
     static bool EnableGUI;

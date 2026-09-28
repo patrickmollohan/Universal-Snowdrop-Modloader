@@ -13,6 +13,13 @@ ModuleInfo Utilities::Module::GetModuleInfo(HMODULE hModule) {
     if (!GetModuleFileNameW(hModule, pathBuffer, MAX_PATH)) return info;
 
     std::filesystem::path fullPath(pathBuffer);
+
+    WIN32_FIND_DATAW findData{};
+    if (HANDLE hFind = FindFirstFileW(fullPath.c_str(), &findData); hFind != INVALID_HANDLE_VALUE) {
+        fullPath = fullPath.parent_path() / findData.cFileName;
+        FindClose(hFind);
+    }
+
     info.fullPath = fullPath;
     info.directory = fullPath.parent_path();
     info.filename = fullPath.filename().string();
@@ -123,35 +130,21 @@ uintptr_t Utilities::PatternScanner::FindPatternBMHWildcard(std::span<const std:
 }
 
 bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std::string& key, bool defaultValue) {
-    char result[256];
-    GetPrivateProfileStringA(
-        section.c_str(),
-        key.c_str(),
-        defaultValue ? "true" : "false",
-        result,
-        sizeof(result),
-        Settings::GetConfigPath()
-    );
+    return GetBoolean(Settings::GetConfigPath(), section, key, defaultValue);
+}
 
-    std::string value(result);
-    value = Utilities::SettingsParser::StripCommentsAndTrim(result);
+bool Utilities::SettingsParser::GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue) {
+    std::string value = GetString(path, section, key, defaultValue ? "true" : "false");
     Utilities::String::ToLower(value);
     return value == "true" || value == "1" || value == "yes" || value == "on";
 }
 
 int Utilities::SettingsParser::GetInt(const std::string& section, const std::string& key, int defaultValue) {
-    char result[256];
-    GetPrivateProfileStringA(
-        section.c_str(),
-        key.c_str(),
-        std::to_string(defaultValue).c_str(),
-        result,
-        sizeof(result),
-        Settings::GetConfigPath()
-    );
+    return GetInt(Settings::GetConfigPath(), section, key, defaultValue);
+}
 
-    std::string value(result);
-    value = Utilities::SettingsParser::StripCommentsAndTrim(result);
+int Utilities::SettingsParser::GetInt(const std::string& path, const std::string& section, const std::string& key, int defaultValue) {
+    std::string value = GetString(path, section, key, std::to_string(defaultValue));
 
     try {
         return std::stoi(value);
@@ -161,6 +154,10 @@ int Utilities::SettingsParser::GetInt(const std::string& section, const std::str
 }
 
 std::string Utilities::SettingsParser::GetString(const std::string& section, const std::string& key, const std::string& defaultValue) {
+    return GetString(Settings::GetConfigPath(), section, key, defaultValue);
+}
+
+std::string Utilities::SettingsParser::GetString(const std::string& path, const std::string& section, const std::string& key, const std::string& defaultValue) {
     char result[256];
     GetPrivateProfileStringA(
         section.c_str(),
@@ -168,12 +165,22 @@ std::string Utilities::SettingsParser::GetString(const std::string& section, con
         defaultValue.c_str(),
         result,
         sizeof(result),
-        Settings::GetConfigPath()
+        path.c_str()
     );
 
-    std::string value(result);
-    value = Utilities::SettingsParser::StripCommentsAndTrim(result);
-    return value;
+    return Utilities::SettingsParser::StripCommentsAndTrim(result);
+}
+
+void Utilities::SettingsParser::SetBoolean(const std::string& section, const std::string& key, bool value) {
+    SetBoolean(Settings::GetConfigPath(), section, key, value);
+}
+
+void Utilities::SettingsParser::SetBoolean(const std::string& path, const std::string& section, const std::string& key, bool value) {
+    WritePrivateProfileStringA(section.c_str(), key.c_str(), value ? "true" : "false", path.c_str());
+}
+
+void Utilities::SettingsParser::SetInt(const std::string& path, const std::string& section, const std::string& key, int value) {
+    WritePrivateProfileStringA(section.c_str(), key.c_str(), std::to_string(value).c_str(), path.c_str());
 }
 
 std::string Utilities::SettingsParser::StripCommentsAndTrim(const std::string& value) {

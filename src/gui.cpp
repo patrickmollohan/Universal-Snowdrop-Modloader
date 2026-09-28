@@ -265,16 +265,32 @@ bool GUI::Host_Checkbox(ModLoaderPluginCtx*, const char* label, bool* value) {
     return ImGui::Checkbox(label, value);
 }
 
+static void DrawWrappedLabel(const char* label) {
+    const char* end = strstr(label, "##");
+    if (!end) end = label + strlen(label);
+    if (end == label) return;
+
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextUnformatted(label, end);
+    ImGui::PopTextWrapPos();
+}
+
 bool GUI::Host_SliderInt(ModLoaderPluginCtx*, const char* label, int* value, int min, int max) {
-    return ImGui::SliderInt(label, value, min, max);
+    DrawWrappedLabel(label);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    return ImGui::SliderInt((std::string("##") + label).c_str(), value, min, max);
 }
 
 bool GUI::Host_SliderFloat(ModLoaderPluginCtx*, const char* label, float* value, float min, float max) {
-    return ImGui::SliderFloat(label, value, min, max);
+    DrawWrappedLabel(label);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    return ImGui::SliderFloat((std::string("##") + label).c_str(), value, min, max);
 }
 
 bool GUI::Host_InputText(ModLoaderPluginCtx*, const char* label, char* buf, size_t bufSize) {
-    return ImGui::InputText(label, buf, bufSize);
+    DrawWrappedLabel(label);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    return ImGui::InputText((std::string("##") + label).c_str(), buf, bufSize);
 }
 
 bool GUI::Host_Button(ModLoaderPluginCtx*, const char* label) {
@@ -286,23 +302,23 @@ void GUI::Host_Separator(ModLoaderPluginCtx*) {
 }
 
 bool GUI::Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool defaultValue) {
-    if (!ctx) return defaultValue;
-    return Utilities::SettingsParser::GetBoolean(ctx->configSection, key, defaultValue);
+    if (!ctx || !key) return defaultValue;
+    return Utilities::SettingsParser::GetBoolean(ctx->configPath, kPluginConfigSection, key, defaultValue);
 }
 
 int GUI::Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int defaultValue) {
-    if (!ctx) return defaultValue;
-    return Utilities::SettingsParser::GetInt(ctx->configSection, key, defaultValue);
+    if (!ctx || !key) return defaultValue;
+    return Utilities::SettingsParser::GetInt(ctx->configPath, kPluginConfigSection, key, defaultValue);
 }
 
 void GUI::Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool value) {
-    if (!ctx) return;
-    WritePrivateProfileStringA(ctx->configSection.c_str(), key, value ? "true" : "false", Settings::GetConfigPath());
+    if (!ctx || !key) return;
+    Utilities::SettingsParser::SetBoolean(ctx->configPath, kPluginConfigSection, key, value);
 }
 
 void GUI::Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int value) {
-    if (!ctx) return;
-    WritePrivateProfileStringA(ctx->configSection.c_str(), key, std::to_string(value).c_str(), Settings::GetConfigPath());
+    if (!ctx || !key) return;
+    Utilities::SettingsParser::SetInt(ctx->configPath, kPluginConfigSection, key, value);
 }
 
 bool GUI::Host_SendCommand(ModLoaderPluginCtx*, const char* targetPlugin, const char* command) {
@@ -317,11 +333,12 @@ void GUI::Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...) {
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
 
-    std::string line = "[" + (ctx ? ctx->configSection : std::string("Plugin")) + "] " + buffer;
+    std::string line = "[" + (ctx ? ctx->pluginId : std::string("Plugin")) + "] " + buffer;
     OutputDebugStringA((line + "\n").c_str());
 
     std::string logPath = (g_DllInfo.directory / "plugins.log").string();
-    if (FILE* f = fopen(logPath.c_str(), "a")) {
+    FILE* f = nullptr;
+    if (fopen_s(&f, logPath.c_str(), "a") == 0 && f) {
         fprintf(f, "%s\n", line.c_str());
         fclose(f);
     }
@@ -357,7 +374,8 @@ void GUI::DrawMenu() {
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextWrapped("Toggling these updates version.ini; mod/plugin loading itself only re-runs on the next launch.");
+        static const std::string configFileName = std::filesystem::path(Settings::GetConfigPath()).filename().string();
+        ImGui::TextWrapped("Toggling these updates %s; mod/plugin loading itself only re-runs on the next launch.", configFileName.c_str());
 
         bool enableMods = Settings::EnableMods;
         if (ImGui::Checkbox("Enable mods", &enableMods)) {
@@ -381,27 +399,57 @@ void GUI::DrawMenu() {
     if (ImGui::CollapsingHeader("Plugins", ImGuiTreeNodeFlags_DefaultOpen)) {
         auto& plugins = Plugins::GetLoadedPlugins();
 
-        if (plugins.empty()) {
-            ImGui::TextDisabled("No plugins loaded.");
+        if (!Settings::EnablePlugins) {
+            ImGui::TextDisabled("Plugin loading is disabled.");
+        } else if (plugins.empty()) {
+            ImGui::TextDisabled("No plugins found.");
         } else {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::TextWrapped("Enabling/disabling a plugin takes effect on the next launch.");
+            ImGui::PopStyleColor();
+
             const float labelIndent = ImGui::GetTreeNodeToLabelSpacing();
+            const float checkboxSize = ImGui::GetFrameHeight();
 
             for (int i = 0; i < static_cast<int>(plugins.size()); ++i) {
                 LoadedPlugin& plugin = plugins[i];
-                const bool hasMenu = plugin.apiInitialised && plugin.info.DrawMenu != nullptr;
-                const std::string label = (plugin.apiInitialised && plugin.info.name) ? plugin.info.name : plugin.fileName;
+                const bool isLoaded = plugin.module != nullptr;
+                const bool hasMenu = isLoaded && plugin.apiInitialised && plugin.info.DrawMenu != nullptr;
+
+                std::string label = (plugin.apiInitialised && plugin.info.name) ? plugin.info.name : plugin.fileName;
+                if (plugin.enabled != isLoaded) {
+                    label += plugin.enabled ? " (enabled on restart)" : " (disabled on restart)";
+                }
 
                 ImGui::PushID(i);
 
+                const float rowStartX = ImGui::GetCursorPosX();
+                const float checkboxX = rowStartX + ImGui::GetContentRegionAvail().x - checkboxSize;
+
+                bool open = false;
                 if (hasMenu) {
-                    if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_None)) {
-                        plugin.info.DrawMenu(&g_PluginHostAPI, plugin.ctx.get());
-                        ImGui::TreePop();
-                    }
+                    const std::string nodeLabel = label + "###plugin";
+                    open = ImGui::TreeNodeEx(nodeLabel.c_str(), ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_FramePadding);
                 } else {
+                    ImGui::AlignTextToFramePadding();
                     ImGui::Indent(labelIndent);
                     ImGui::TextUnformatted(label.c_str());
                     ImGui::Unindent(labelIndent);
+                }
+
+                ImGui::SameLine(checkboxX);
+                bool enabled = plugin.enabled;
+                if (ImGui::Checkbox("##enabled", &enabled)) {
+                    plugin.enabled = enabled;
+                    Settings::SetPluginEnabled(plugin.fileName, enabled);
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s (applies on next launch)", plugin.enabled ? "Enabled" : "Disabled");
+                }
+
+                if (hasMenu && open) {
+                    plugin.info.DrawMenu(&g_PluginHostAPI, plugin.ctx.get());
+                    ImGui::TreePop();
                 }
 
                 ImGui::PopID();

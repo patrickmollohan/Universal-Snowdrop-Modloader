@@ -4,12 +4,16 @@
 #include "plugin_api.hpp"
 #include "settings.hpp"
 
+inline constexpr const char* kPluginConfigSection = "Settings";
+
 struct ModLoaderPluginCtx {
-    std::string configSection;
+    std::string pluginId;
+    std::string configPath;
 };
 
 struct LoadedPlugin {
     HMODULE module = nullptr;
+    bool enabled = true;
     std::string fileName;
     ModLoaderPluginInfo info{};
     std::unique_ptr<ModLoaderPluginCtx> ctx;

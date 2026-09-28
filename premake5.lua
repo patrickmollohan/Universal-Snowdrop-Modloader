@@ -3,6 +3,7 @@ workspace "Universal-Snowdrop-Modloader"
     location "build"
     cppdialect "C++latest"
     exceptionhandling "SEH"
+    startproject "Universal-Snowdrop-Modloader"
 
     configurations {
         "dinput8",
@@ -18,26 +19,13 @@ local ProxyMap = {
 }
 
 -- =========================================
--- MinHook
+-- Shared third-party sources
 -- =========================================
-project "MinHook"
-    kind "StaticLib"
-    language "C"
-    targetdir "bin/%{cfg.buildcfg}"
-
-    includedirs { "lib/MinHook/include" }
-
-    files {
-        "lib/MinHook/src/**.c",
-        "lib/MinHook/src/**.h",
-        "lib/MinHook/include/**.h"
-    }
-
-    filter "configurations:*"
-        optimize "On"
-        staticruntime "On"
-        buildoptions { "/Ox", "/fp:fast" }
-        linktimeoptimization ("On")
+local MinHookFiles = {
+    "lib/MinHook/src/**.c",
+    "lib/MinHook/src/**.h",
+    "lib/MinHook/include/**.h"
+}
 
 -- =========================================
 -- Universal Snowdrop Modloader
@@ -67,13 +55,16 @@ project "Universal-Snowdrop-Modloader"
         "lib/ImGui/backends/imgui_impl_win32.cpp",
         "lib/ImGui/backends/imgui_impl_dx12.cpp"
     }
+    files(MinHookFiles)
 
     pchheader "pch.hpp"
     pchsource "src/pch.cpp"
     characterset "UNICODE"
-    links { "MinHook", "d3d12", "dxgi" }
+    links { "d3d12", "dxgi" }
 
     filter { "files:lib/ImGui/**.cpp" }
+        flags { "NoPCH" }
+    filter { "files:lib/MinHook/**.c" }
         flags { "NoPCH" }
     filter {}
 
@@ -102,3 +93,38 @@ project "Universal-Snowdrop-Modloader"
         removefiles { "include/proxies/dinput8.hpp", "src/proxies/dinput8.def", "src/proxies/dinput8.cpp" }
 
     filter {}
+
+-- =========================================
+-- Plugins
+-- =========================================
+group "Plugins"
+
+local function PluginProject(name)
+    project(name)
+        kind "SharedLib"
+        language "C++"
+        targetextension ".dll"
+        targetname(name)
+        targetdir "bin/%{cfg.buildcfg}/plugins"
+
+        includedirs {
+            "include",
+            "lib/MinHook/include"
+        }
+
+        files { "plugin_templates/" .. name .. "/**.cpp" }
+        files(MinHookFiles)
+
+        characterset "UNICODE"
+        defines { "NDEBUG" }
+        optimize "On"
+        staticruntime "On"
+        linktimeoptimization "On"
+        buildoptions { "/Ox", "/fp:fast" }
+
+        filter { "files:lib/MinHook/**.c" }
+            flags { "NoPCH" }
+        filter {}
+end
+
+PluginProject("PerformanceTweaks")
