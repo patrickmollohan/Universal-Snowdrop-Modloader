@@ -73,11 +73,22 @@ namespace {
 }
 
 void Plugins::LoadPluginsFromDirectory(const std::wstring& directory) {
-    std::vector<fs::path> pluginFiles;
-    for (const auto& entry : fs::directory_iterator(directory)) {
-        if (!entry.is_regular_file()) continue;
+    std::error_code ec;
 
-        fs::path filePath = entry.path();
+    if (!fs::is_directory(directory, ec)) return;
+
+    std::vector<fs::path> pluginFiles;
+
+    fs::directory_iterator it(directory, fs::directory_options::skip_permission_denied, ec);
+    if (ec) return;
+
+    for (const fs::directory_iterator end; it != end; it.increment(ec)) {
+        if (ec) break;
+
+        std::error_code entryEc;
+        if (!it->is_regular_file(entryEc) || entryEc) continue;
+
+        fs::path filePath = it->path();
         if (filePath.extension() != L".dll" && filePath.extension() != L".asi") continue;
 
         pluginFiles.push_back(std::move(filePath));
