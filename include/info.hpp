@@ -2,7 +2,7 @@
 
 #include <winresrc.h>
 
-#define DLL_VERSION_MAJOR 1
+#define DLL_VERSION_MAJOR 2
 #define DLL_VERSION_MINOR 0
 #define DLL_VERSION_BUILD 0
 #define DLL_VERSION_REVISION 0

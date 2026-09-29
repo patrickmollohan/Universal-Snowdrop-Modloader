@@ -10,9 +10,11 @@ std::vector<LoadedPlugin> loadedPlugins;
 
 bool Plugins::LoadPlugins() {
     if (!Settings::EnablePlugins) return false;
-    std::filesystem::path pluginsPath = g_ExeInfo.directory / L"plugins";
-    std::filesystem::create_directory(pluginsPath);
-    LoadPluginsFromDirectory(pluginsPath.wstring());
+
+    for (const auto& dirName : {L"plugins", L"scripts"}) {
+        std::filesystem::path dir = g_ExeInfo.directory / dirName;
+        LoadPluginsFromDirectory(dir.wstring());
+    }
     return true;
 }
 
@@ -54,7 +56,7 @@ namespace {
         }
 
         const fs::path target = SpecificIniPath(*owner);
-        if (fs::exists(target, ec)) return;  // never overwrite an existing file
+        if (fs::exists(target, ec)) return;
         fs::rename(shared, target, ec);
     }
 
