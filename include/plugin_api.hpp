@@ -25,10 +25,10 @@ typedef struct ModLoaderHostAPI {
     void (*Separator)(ModLoaderPluginCtx* ctx);
 
     // --- Config ----------------------------------------------------------
-    bool (*GetConfigBool)(ModLoaderPluginCtx* ctx, const char* key, bool defaultValue);
-    int  (*GetConfigInt)(ModLoaderPluginCtx* ctx, const char* key, int defaultValue);
-    void (*SetConfigBool)(ModLoaderPluginCtx* ctx, const char* key, bool value);
-    void (*SetConfigInt)(ModLoaderPluginCtx* ctx, const char* key, int value);
+    bool (*GetConfigBool)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue);
+    int  (*GetConfigInt)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue);
+    void (*SetConfigBool)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value);
+    void (*SetConfigInt)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value);
 
     // --- Commands ----------------------------------------------------------
     bool (*SendCommand)(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);

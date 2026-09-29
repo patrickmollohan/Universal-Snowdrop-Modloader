@@ -63,9 +63,9 @@ project "Universal-Snowdrop-Modloader"
     links { "d3d12", "dxgi" }
 
     filter { "files:lib/ImGui/**.cpp" }
-        flags { "NoPCH" }
+        enablepch "Off"
     filter { "files:lib/MinHook/**.c" }
-        flags { "NoPCH" }
+        enablepch "Off"
     filter {}
 
     -- defaults
@@ -123,7 +123,7 @@ local function PluginProject(name)
         buildoptions { "/Ox", "/fp:fast" }
 
         filter { "files:lib/MinHook/**.c" }
-            flags { "NoPCH" }
+            enablepch "Off"
         filter {}
 end
 

@@ -301,24 +301,24 @@ void GUI::Host_Separator(ModLoaderPluginCtx*) {
     ImGui::Separator();
 }
 
-bool GUI::Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool defaultValue) {
+bool GUI::Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue) {
     if (!ctx || !key) return defaultValue;
-    return Utilities::SettingsParser::GetBoolean(ctx->configPath, kPluginConfigSection, key, defaultValue);
+    return Utilities::SettingsParser::GetBoolean(ctx->configPath, kPluginConfigSection, key, defaultValue, comment);
 }
 
-int GUI::Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int defaultValue) {
+int GUI::Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue) {
     if (!ctx || !key) return defaultValue;
-    return Utilities::SettingsParser::GetInt(ctx->configPath, kPluginConfigSection, key, defaultValue);
+    return Utilities::SettingsParser::GetInt(ctx->configPath, kPluginConfigSection, key, defaultValue, comment);
 }
 
-void GUI::Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool value) {
+void GUI::Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value) {
     if (!ctx || !key) return;
-    Utilities::SettingsParser::SetBoolean(ctx->configPath, kPluginConfigSection, key, value);
+    Utilities::SettingsParser::SetBoolean(ctx->configPath, kPluginConfigSection, key, value, comment);
 }
 
-void GUI::Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int value) {
+void GUI::Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value) {
     if (!ctx || !key) return;
-    Utilities::SettingsParser::SetInt(ctx->configPath, kPluginConfigSection, key, value);
+    Utilities::SettingsParser::SetInt(ctx->configPath, kPluginConfigSection, key, value, comment);
 }
 
 bool GUI::Host_SendCommand(ModLoaderPluginCtx*, const char* targetPlugin, const char* command) {
@@ -380,19 +380,19 @@ void GUI::DrawMenu() {
         bool enableMods = Settings::EnableMods;
         if (ImGui::Checkbox("Enable mods", &enableMods)) {
             Settings::EnableMods = enableMods;
-            WritePrivateProfileStringA("Settings", "EnableMods", enableMods ? "true" : "false", Settings::GetConfigPath());
+            Utilities::SettingsParser::SetBoolean(Settings::GetConfigPath(), "Settings", "EnableMods", enableMods);
         }
 
         bool enablePlugins = Settings::EnablePlugins;
         if (ImGui::Checkbox("Enable plugins", &enablePlugins)) {
             Settings::EnablePlugins = enablePlugins;
-            WritePrivateProfileStringA("Settings", "EnablePlugins", enablePlugins ? "true" : "false", Settings::GetConfigPath());
+            Utilities::SettingsParser::SetBoolean(Settings::GetConfigPath(), "Settings", "EnablePlugins", enablePlugins);
         }
 
         bool enableGUI = Settings::EnableGUI;
         if (ImGui::Checkbox("Enable this menu", &enableGUI)) {
             Settings::EnableGUI = enableGUI;
-            WritePrivateProfileStringA("Settings", "EnableGUI", enableGUI ? "true" : "false", Settings::GetConfigPath());
+            Utilities::SettingsParser::SetBoolean(Settings::GetConfigPath(), "Settings", "EnableGUI", enableGUI);
         }
     }
 

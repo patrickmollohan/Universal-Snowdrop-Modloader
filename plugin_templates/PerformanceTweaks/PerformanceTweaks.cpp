@@ -75,6 +75,12 @@ static bool s_highIoPriority = true;
 
 static const char* const kPriorityLevelNames[3] = { "Normal", "Medium", "High" };
 
+static const char* const kCommentCacheA = "Enables disk caching during calls to CreateFileA (true/false, default: true)";
+static const char* const kCommentCacheW = "Enables disk caching during calls to CreateFileW (true/false, default: true)";
+static const char* const kCommentCpuPriority = "Sets the priority level of the CPU (0=Normal, 1=Medium, 2=High, default: 2)";
+static const char* const kCommentThreadPriority = "Sets the priority level of threads (0=Normal, 1=Medium, 2=High, default: 2)";
+static const char* const kCommentHighIo = "Sets the I/O priority of threads (true=High, false=Normal, default: true)";
+
 static int Clamp3(int value) {
     return value < 0 ? 0 : (value > 2 ? 2 : value);
 }
@@ -276,10 +282,10 @@ static uintptr_t __stdcall _beginthreadex_Hook(void* security, unsigned stackSiz
 static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
     host->Text(ctx, "Disk cache");
     if (host->Checkbox(ctx, "Enable for CreateFileA", &s_cacheCreateFileA)) {
-        host->SetConfigBool(ctx, "CacheCreateFileA", s_cacheCreateFileA);
+        host->SetConfigBool(ctx, "CacheCreateFileA", kCommentCacheA, s_cacheCreateFileA);
     }
     if (host->Checkbox(ctx, "Enable for CreateFileW", &s_cacheCreateFileW)) {
-        host->SetConfigBool(ctx, "CacheCreateFileW", s_cacheCreateFileW);
+        host->SetConfigBool(ctx, "CacheCreateFileW", kCommentCacheW, s_cacheCreateFileW);
     }
 
     host->Separator(ctx);
@@ -288,7 +294,7 @@ static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
     int cpuLevel = s_cpuPriorityLevel;
     if (host->SliderInt(ctx, "CPU priority (0=Normal, 1=Medium, 2=High)", &cpuLevel, 0, 2)) {
         s_cpuPriorityLevel = Clamp3(cpuLevel);
-        host->SetConfigInt(ctx, "CPUPriority", s_cpuPriorityLevel);
+        host->SetConfigInt(ctx, "CPUPriority", kCommentCpuPriority, s_cpuPriorityLevel);
         ApplyCpuPriorityNow();
     }
     host->Text(ctx, "Current: %s", kPriorityLevelNames[s_cpuPriorityLevel]);
@@ -296,13 +302,13 @@ static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
     int threadLevel = s_threadPriorityLevel;
     if (host->SliderInt(ctx, "Thread priority (0=Normal, 1=Medium, 2=High)", &threadLevel, 0, 2)) {
         s_threadPriorityLevel = Clamp3(threadLevel);
-        host->SetConfigInt(ctx, "ThreadPriority", s_threadPriorityLevel);
+        host->SetConfigInt(ctx, "ThreadPriority", kCommentThreadPriority, s_threadPriorityLevel);
         ApplyThreadPrioritiesNow();
     }
     host->Text(ctx, "Current: %s", kPriorityLevelNames[s_threadPriorityLevel]);
 
     if (host->Checkbox(ctx, "High I/O priority", &s_highIoPriority)) {
-        host->SetConfigBool(ctx, "HighIOPriority", s_highIoPriority);
+        host->SetConfigBool(ctx, "HighIOPriority", kCommentHighIo, s_highIoPriority);
         ApplyThreadPrioritiesNow();
     }
 }
@@ -351,11 +357,11 @@ static bool InstallHooks() {
 extern "C" __declspec(dllexport) bool ModLoader_InitPlugin(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx, ModLoaderPluginInfo* outInfo) {
     if (host->apiVersion != MODLOADER_PLUGIN_API_VERSION) return false;
 
-    s_cacheCreateFileA = host->GetConfigBool(ctx, "CacheCreateFileA", true);
-    s_cacheCreateFileW = host->GetConfigBool(ctx, "CacheCreateFileW", true);
-    s_cpuPriorityLevel = Clamp3(host->GetConfigInt(ctx, "CPUPriority", 2));
-    s_threadPriorityLevel = Clamp3(host->GetConfigInt(ctx, "ThreadPriority", 2));
-    s_highIoPriority = host->GetConfigBool(ctx, "HighIOPriority", true);
+    s_cacheCreateFileA = host->GetConfigBool(ctx, "CacheCreateFileA", kCommentCacheA, true);
+    s_cacheCreateFileW = host->GetConfigBool(ctx, "CacheCreateFileW", kCommentCacheW, true);
+    s_cpuPriorityLevel = Clamp3(host->GetConfigInt(ctx, "CPUPriority", kCommentCpuPriority, 2));
+    s_threadPriorityLevel = Clamp3(host->GetConfigInt(ctx, "ThreadPriority", kCommentThreadPriority, 2));
+    s_highIoPriority = host->GetConfigBool(ctx, "HighIOPriority", kCommentHighIo, true);
 
     if (!InstallHooks()) {
         host->Log(ctx, "Failed to install performance hooks (MinHook init or a hook creation failed)");

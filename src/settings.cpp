@@ -14,11 +14,13 @@ std::string Settings::MenuToggleKeyName;
 void Settings::LoadSettings() {
     using SettingsParser = Utilities::SettingsParser;
 
-    EnableMods = SettingsParser::GetBoolean("Settings", "EnableMods", true);
-    EnablePlugins = SettingsParser::GetBoolean("Settings", "EnablePlugins", true);
-    EnableGUI = SettingsParser::GetBoolean("Settings", "EnableGUI", true);
+    const std::string path = GetConfigPath();
 
-    std::string toggleKeyName = SettingsParser::GetString("Settings", "ToggleKey", "Insert");
+    EnableMods = SettingsParser::GetBoolean(path, "Settings", "EnableMods", true, "Lets loose files on disk override the game's own files (true/false, default: true)");
+    EnablePlugins = SettingsParser::GetBoolean(path, "Settings", "EnablePlugins", true, "Loads plugins from the plugins folder (true/false, default: true)");
+    EnableGUI = SettingsParser::GetBoolean(path, "Settings", "EnableGUI", true, "Enables the in-game menu (true/false, default: true)");
+
+    std::string toggleKeyName = SettingsParser::GetString(path, "Settings", "ToggleKey", "Insert", "Key that opens/closes the in-game menu (e.g. Insert, Home, F1, A, default: Insert)");
     MenuToggleKey = ParseVirtualKeyName(toggleKeyName, VK_INSERT);
     MenuToggleKeyName = toggleKeyName.empty() ? "Insert" : toggleKeyName;
 }
@@ -33,11 +35,11 @@ LPCSTR Settings::GetConfigPath() {
 }
 
 bool Settings::IsPluginEnabled(const std::string& pluginFileName) {
-    return Utilities::SettingsParser::GetBoolean("Plugins", pluginFileName, true);
+    return Utilities::SettingsParser::GetBoolean(GetConfigPath(), "Plugins", pluginFileName, true, "Set to false to disable plugin (true/false, default: true)");
 }
 
 void Settings::SetPluginEnabled(const std::string& pluginFileName, bool enabled) {
-    Utilities::SettingsParser::SetBoolean("Plugins", pluginFileName, enabled);
+    Utilities::SettingsParser::SetBoolean(GetConfigPath(), "Plugins", pluginFileName, enabled);
 }
 
 UINT Settings::ParseVirtualKeyName(const std::string& name, UINT defaultValue) {

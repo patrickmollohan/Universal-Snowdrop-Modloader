@@ -20,25 +20,17 @@ public:
         static uintptr_t FindPattern(const char* pattern);
     private:
         static std::vector<PatternByte> CompilePattern(const char* pattern);
-        static bool HasWildcards(const std::vector<PatternByte>& pattern);
-        static uintptr_t FindPatternBMH(std::span<const std::byte> image, const std::vector<PatternByte>& pattern);
-        static uintptr_t FindPatternBMHWildcard(std::span<const std::byte> image, const std::vector<PatternByte>& pattern);
+        static uintptr_t FindPatternSIMD(std::span<const std::byte> image, const std::vector<PatternByte>& pattern);
     };
 
     class SettingsParser {
     public:
-        static bool GetBoolean(const std::string& section, const std::string& key, bool defaultValue);
-        static int GetInt(const std::string& section, const std::string& key, int defaultValue);
-        static std::string GetString(const std::string& section, const std::string& key, const std::string& defaultValue);
+        static bool GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue, const char* comment = nullptr);
+        static int GetInt(const std::string& path, const std::string& section, const std::string& key, int defaultValue, const char* comment = nullptr);
+        static std::string GetString(const std::string& path, const std::string& section, const std::string& key, const std::string& defaultValue, const char* comment = nullptr);
 
-        static bool GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue);
-        static int GetInt(const std::string& path, const std::string& section, const std::string& key, int defaultValue);
-        static std::string GetString(const std::string& path, const std::string& section, const std::string& key, const std::string& defaultValue);
-
-        static void SetBoolean(const std::string& section, const std::string& key, bool value);
-        static void SetBoolean(const std::string& path, const std::string& section, const std::string& key, bool value);
-        static void SetInt(const std::string& path, const std::string& section, const std::string& key, int value);
-        static std::string StripCommentsAndTrim(const std::string& value);
+        static void SetBoolean(const std::string& path, const std::string& section, const std::string& key, bool value, const char* comment = nullptr);
+        static void SetInt(const std::string& path, const std::string& section, const std::string& key, int value, const char* comment = nullptr);
     };
 
     class String {

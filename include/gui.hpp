@@ -55,10 +55,10 @@ public:
     static bool Host_InputText(ModLoaderPluginCtx* ctx, const char* label, char* buf, size_t bufSize);
     static bool Host_Button(ModLoaderPluginCtx* ctx, const char* label);
     static void Host_Separator(ModLoaderPluginCtx* ctx);
-    static bool Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool defaultValue);
-    static int  Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int defaultValue);
-    static void Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, bool value);
-    static void Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, int value);
+    static bool Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue);
+    static int  Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue);
+    static void Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value);
+    static void Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value);
     static bool Host_SendCommand(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);
     static void Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...);
 

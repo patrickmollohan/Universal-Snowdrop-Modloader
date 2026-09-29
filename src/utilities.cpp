@@ -1,5 +1,9 @@
 #include "pch.hpp"
 #include "utilities.hpp"
+#include "ini.hpp"
+
+#include <bit>
+#include <emmintrin.h>
 
 bool Utilities::Files::FileExists(LPCSTR filePath) {
     DWORD dwAttrib = GetFileAttributesA(filePath);
@@ -56,95 +60,64 @@ std::vector<PatternByte> Utilities::PatternScanner::CompilePattern(const char* p
     return out;
 }
 
-bool Utilities::PatternScanner::HasWildcards(const std::vector<PatternByte>& pattern) {
-    for (auto& b : pattern)
-        if (b.wildcard) return true;
-    return false;
-}
-
 uintptr_t Utilities::PatternScanner::FindPattern(const char* pat) {
     auto compiled = CompilePattern(pat);
 
-    return FindPatternBMHWildcard(g_ExeInfo.image, compiled);
+    return FindPatternSIMD(g_ExeInfo.image, compiled);
 }
 
-uintptr_t Utilities::PatternScanner::FindPatternBMH(std::span<const std::byte> img, const std::vector<PatternByte>& pattern) {
-    const size_t len = pattern.size();
-    if (!len || img.size() < len) return 0;
-
-    uint8_t skip[256];
-    memset(skip, (int)len, 256);
-
-    for (size_t i = 0; i < len - 1; i++)
-        skip[pattern[i].value] = uint8_t(len - 1 - i);
-
-    size_t i = 0;
-    while (i <= img.size() - len) {
-        auto last = std::to_integer<uint8_t>(img[i + len - 1]);
-
-        if (last == pattern[len - 1].value) {
-            if (memcmp(img.data() + i, &pattern[0].value, len - 1) == 0)
-                return reinterpret_cast<uintptr_t>(img.data() + i);
-        }
-        i += skip[last];
-    }
-    return 0;
-}
-
-uintptr_t Utilities::PatternScanner::FindPatternBMHWildcard(std::span<const std::byte> img, const std::vector<PatternByte>& pattern) {
+uintptr_t Utilities::PatternScanner::FindPatternSIMD(std::span<const std::byte> img, const std::vector<PatternByte>& pattern) {
     const size_t len = pattern.size();
     if (len == 0 || img.size() < len) return 0;
 
-    size_t anchor = len - 1;
-    while (anchor > 0 && pattern[anchor].wildcard) anchor--;
+    size_t first = 0;
+    while (first < len && pattern[first].wildcard) ++first;
+    if (first == len) return reinterpret_cast<uintptr_t>(img.data());
 
-    uint8_t skip[256];
-    memset(skip, (int)len, 256);
-    for (size_t i = 0; i < anchor; ++i) {
-        if (!pattern[i].wildcard) skip[pattern[i].value] = static_cast<uint8_t>(anchor - i);
-    }
+    size_t last = len - 1;
+    while (pattern[last].wildcard) --last;
+
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(img.data());
+    const size_t lastStart = img.size() - len;
+
+    const __m128i firstByte = _mm_set1_epi8(static_cast<char>(pattern[first].value));
+    const __m128i lastByte = _mm_set1_epi8(static_cast<char>(pattern[last].value));
+
+    auto matchesAt = [&](size_t i) {
+        for (size_t j = 0; j < len; ++j) {
+            if (!pattern[j].wildcard && data[i + j] != pattern[j].value) return false;
+        }
+        return true;
+    };
 
     size_t i = 0;
-    while (i <= img.size() - len) {
-        uint8_t current = std::to_integer<uint8_t>(img[i + anchor]);
+    for (; i + 16 <= lastStart + 1; i += 16) {
+        const __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i + first));
+        const __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i + last));
+        auto mask = static_cast<unsigned>(_mm_movemask_epi8(_mm_and_si128(_mm_cmpeq_epi8(a, firstByte), _mm_cmpeq_epi8(b, lastByte))));
 
-        if (!pattern[anchor].wildcard && current != pattern[anchor].value) {
-            i += skip[current];
-            continue;
+        while (mask) {
+            const size_t candidate = i + std::countr_zero(mask);
+            if (matchesAt(candidate)) return reinterpret_cast<uintptr_t>(data + candidate);
+            mask &= mask - 1;
         }
+    }
 
-        bool found = true;
-        for (size_t j = 0; j < len; ++j) {
-            if (!pattern[j].wildcard &&
-                std::to_integer<uint8_t>(img[i + j]) != pattern[j].value) {
-                found = false;
-                break;
-            }
-        }
-
-        if (found) return reinterpret_cast<uintptr_t>(img.data() + i);
-        i++;
+    for (; i <= lastStart; ++i) {
+        if (matchesAt(i)) return reinterpret_cast<uintptr_t>(data + i);
     }
 
     return 0;
 }
 
-bool Utilities::SettingsParser::GetBoolean(const std::string& section, const std::string& key, bool defaultValue) {
-    return GetBoolean(Settings::GetConfigPath(), section, key, defaultValue);
-}
-
-bool Utilities::SettingsParser::GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue) {
-    std::string value = GetString(path, section, key, defaultValue ? "true" : "false");
+bool Utilities::SettingsParser::GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue, const char* comment) {
+    std::string value = GetString(path, section, key, defaultValue ? "true" : "false", comment);
     Utilities::String::ToLower(value);
     return value == "true" || value == "1" || value == "yes" || value == "on";
 }
 
-int Utilities::SettingsParser::GetInt(const std::string& section, const std::string& key, int defaultValue) {
-    return GetInt(Settings::GetConfigPath(), section, key, defaultValue);
-}
-
-int Utilities::SettingsParser::GetInt(const std::string& path, const std::string& section, const std::string& key, int defaultValue) {
-    std::string value = GetString(path, section, key, std::to_string(defaultValue));
+int Utilities::SettingsParser::GetInt(const std::string& path, const std::string& section, const std::string& key, int defaultValue, const char* comment) {
+    std::string value = GetString(path, section, key, std::to_string(defaultValue), comment);
 
     try {
         return std::stoi(value);
@@ -153,41 +126,16 @@ int Utilities::SettingsParser::GetInt(const std::string& path, const std::string
     }
 }
 
-std::string Utilities::SettingsParser::GetString(const std::string& section, const std::string& key, const std::string& defaultValue) {
-    return GetString(Settings::GetConfigPath(), section, key, defaultValue);
+std::string Utilities::SettingsParser::GetString(const std::string& path, const std::string& section, const std::string& key, const std::string& defaultValue, const char* comment) {
+    return Ini::ReadOrCreate(path, section, key, defaultValue, comment);
 }
 
-std::string Utilities::SettingsParser::GetString(const std::string& path, const std::string& section, const std::string& key, const std::string& defaultValue) {
-    char result[256];
-    GetPrivateProfileStringA(
-        section.c_str(),
-        key.c_str(),
-        defaultValue.c_str(),
-        result,
-        sizeof(result),
-        path.c_str()
-    );
-
-    return Utilities::SettingsParser::StripCommentsAndTrim(result);
+void Utilities::SettingsParser::SetBoolean(const std::string& path, const std::string& section, const std::string& key, bool value, const char* comment) {
+    Ini::Write(path, section, key, value ? "true" : "false", comment);
 }
 
-void Utilities::SettingsParser::SetBoolean(const std::string& section, const std::string& key, bool value) {
-    SetBoolean(Settings::GetConfigPath(), section, key, value);
-}
-
-void Utilities::SettingsParser::SetBoolean(const std::string& path, const std::string& section, const std::string& key, bool value) {
-    WritePrivateProfileStringA(section.c_str(), key.c_str(), value ? "true" : "false", path.c_str());
-}
-
-void Utilities::SettingsParser::SetInt(const std::string& path, const std::string& section, const std::string& key, int value) {
-    WritePrivateProfileStringA(section.c_str(), key.c_str(), std::to_string(value).c_str(), path.c_str());
-}
-
-std::string Utilities::SettingsParser::StripCommentsAndTrim(const std::string& value) {
-    auto result = value.substr(0, value.find_first_of(";#"));
-    result.erase(0, result.find_first_not_of(" \t"));
-    result.erase(result.find_last_not_of(" \t") + 1);
-    return result;
+void Utilities::SettingsParser::SetInt(const std::string& path, const std::string& section, const std::string& key, int value, const char* comment) {
+    Ini::Write(path, section, key, std::to_string(value), comment);
 }
 
 bool Utilities::String::Contains(const std::string& str, const std::string& substr) {
