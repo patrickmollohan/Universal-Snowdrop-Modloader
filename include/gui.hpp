@@ -26,16 +26,29 @@ public:
     static const ModLoaderHostAPI* GetPluginHostAPI();
 
 private:
-    static constexpr UINT BackBufferCount = 8;
+    static constexpr UINT BackBufferCount = DXGI_MAX_SWAP_CHAIN_BUFFERS;
+    static constexpr int MaxInitFailures = 3;
 
     struct FrameContext {
         ID3D12CommandAllocator* commandAllocator = nullptr;
-        ID3D12Resource* backBuffer = nullptr;
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle{};
     };
 
-    static bool initialised;
+    struct SwapChainQueue {
+        void* swapChain = nullptr;
+        HWND window = nullptr;
+        ID3D12CommandQueue* queue = nullptr;
+    };
+    static std::vector<SwapChainQueue> swapChainQueues;
+    static std::mutex swapChainQueuesMutex;
 
+    static std::atomic<bool> initialised;
+    static bool disabled;
+    static int initFailures;
+    static void* unknownQueueSwapChain;
+
+    static std::recursive_mutex stateMutex;
+    static std::recursive_mutex imguiMutex;
     static ID3D12Device* device;
     static ID3D12CommandQueue* commandQueue;
     static ID3D12GraphicsCommandList* commandList;
@@ -43,7 +56,19 @@ private:
     static ID3D12DescriptorHeap* srvDescriptorHeap;
     static FrameContext frameContexts[BackBufferCount];
     static UINT frameCount;
+    static UINT64 renderCounter;
+    static DXGI_FORMAT backBufferFormat;
 
+    static ID3D12Fence* fence;
+    static HANDLE fenceEvent;
+    static UINT64 fenceValue;
+    static UINT64 frameFenceValues[BackBufferCount];
+
+    static bool imguiContextCreated;
+    static bool imguiWin32Ready;
+    static bool imguiDx12Ready;
+
+    static IDXGISwapChain3* activeSwapChain;
     static HWND gameWindow;
     static WNDPROC originalWndProc;
 
@@ -64,10 +89,22 @@ public:
 
 private:
     static void InitialiseImGui(IDXGISwapChain3* swapChain);
-    static void CreateRenderTargets(IDXGISwapChain3* swapChain);
-    static void ReleaseRenderTargets();
+    static void ShutdownGraphics();
     static void RenderFrame(IDXGISwapChain3* swapChain);
     static void DrawMenu();
+
+    static void OnPresent(IDXGISwapChain3* swapChain, UINT flags);
+    static bool GuardedOnPresent(IDXGISwapChain3* swapChain, UINT flags);
+    static void PollToggleKey();
+    static bool SwapChainStillMatches(IDXGISwapChain3* swapChain);
+
+    static void RegisterSwapChain(IUnknown* queueOrDevice, IUnknown* swapChain, HWND window);
+    static bool GuardedRegisterSwapChain(IUnknown* queueOrDevice, IUnknown* swapChain, HWND window);
+    static ID3D12CommandQueue* FindQueueFor(IUnknown* swapChain);
+    static void ReleaseRegisteredQueues();
+
+    static void WaitForGpu();
+    static bool WaitForFrame(UINT index);
 
     static LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -75,13 +112,17 @@ private:
     static Present_t originalPresent;
     static HRESULT STDMETHODCALLTYPE HookedPresent(IDXGISwapChain3* swapChain, UINT syncInterval, UINT flags);
 
-    using ResizeBuffers_t = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain3*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
-    static ResizeBuffers_t originalResizeBuffers;
-    static HRESULT STDMETHODCALLTYPE HookedResizeBuffers(IDXGISwapChain3* swapChain, UINT bufferCount, UINT width, UINT height, DXGI_FORMAT newFormat, UINT swapChainFlags);
+    using Present1_t = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain3*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
+    static Present1_t originalPresent1;
+    static HRESULT STDMETHODCALLTYPE HookedPresent1(IDXGISwapChain3* swapChain, UINT syncInterval, UINT flags, const DXGI_PRESENT_PARAMETERS* params);
 
-    using ExecuteCommandLists_t = void(STDMETHODCALLTYPE*)(ID3D12CommandQueue*, UINT, ID3D12CommandList* const*);
-    static ExecuteCommandLists_t originalExecuteCommandLists;
-    static void STDMETHODCALLTYPE HookedExecuteCommandLists(ID3D12CommandQueue* queue, UINT numCommandLists, ID3D12CommandList* const* commandLists);
+    using CreateSwapChain_t = HRESULT(STDMETHODCALLTYPE*)(IDXGIFactory*, IUnknown*, DXGI_SWAP_CHAIN_DESC*, IDXGISwapChain**);
+    static CreateSwapChain_t originalCreateSwapChain;
+    static HRESULT STDMETHODCALLTYPE HookedCreateSwapChain(IDXGIFactory* factory, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** swapChain);
 
-    static bool FindTargetFunctions(void** presentFn, void** resizeBuffersFn, void** executeCommandListsFn);
+    using CreateSwapChainForHwnd_t = HRESULT(STDMETHODCALLTYPE*)(IDXGIFactory2*, IUnknown*, HWND, const DXGI_SWAP_CHAIN_DESC1*, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*, IDXGIOutput*, IDXGISwapChain1**);
+    static CreateSwapChainForHwnd_t originalCreateSwapChainForHwnd;
+    static HRESULT STDMETHODCALLTYPE HookedCreateSwapChainForHwnd(IDXGIFactory2* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc, IDXGIOutput* restrictToOutput, IDXGISwapChain1** swapChain);
+
+    static bool FindTargetFunctions(void** presentFn, void** present1Fn, void** createSwapChainFn, void** createSwapChainForHwndFn);
 };

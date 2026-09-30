@@ -4,7 +4,15 @@
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 bool GUI::Visible = false;
-bool GUI::initialised = false;
+std::atomic<bool> GUI::initialised{ false };
+bool GUI::disabled = false;
+int GUI::initFailures = 0;
+void* GUI::unknownQueueSwapChain = nullptr;
+
+std::vector<GUI::SwapChainQueue> GUI::swapChainQueues;
+std::mutex GUI::swapChainQueuesMutex;
+std::recursive_mutex GUI::stateMutex;
+std::recursive_mutex GUI::imguiMutex;
 
 ID3D12Device* GUI::device = nullptr;
 ID3D12CommandQueue* GUI::commandQueue = nullptr;
@@ -13,15 +21,56 @@ ID3D12DescriptorHeap* GUI::rtvDescriptorHeap = nullptr;
 ID3D12DescriptorHeap* GUI::srvDescriptorHeap = nullptr;
 GUI::FrameContext GUI::frameContexts[GUI::BackBufferCount]{};
 UINT GUI::frameCount = 0;
+UINT64 GUI::renderCounter = 0;
+DXGI_FORMAT GUI::backBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
+ID3D12Fence* GUI::fence = nullptr;
+HANDLE GUI::fenceEvent = nullptr;
+UINT64 GUI::fenceValue = 0;
+UINT64 GUI::frameFenceValues[GUI::BackBufferCount]{};
+
+bool GUI::imguiContextCreated = false;
+bool GUI::imguiWin32Ready = false;
+bool GUI::imguiDx12Ready = false;
+
+IDXGISwapChain3* GUI::activeSwapChain = nullptr;
 HWND GUI::gameWindow = nullptr;
 WNDPROC GUI::originalWndProc = nullptr;
 
 GUI::Present_t GUI::originalPresent = nullptr;
-GUI::ResizeBuffers_t GUI::originalResizeBuffers = nullptr;
-GUI::ExecuteCommandLists_t GUI::originalExecuteCommandLists = nullptr;
+GUI::Present1_t GUI::originalPresent1 = nullptr;
+GUI::CreateSwapChain_t GUI::originalCreateSwapChain = nullptr;
+GUI::CreateSwapChainForHwnd_t GUI::originalCreateSwapChainForHwnd = nullptr;
 
-bool GUI::FindTargetFunctions(void** presentFn, void** resizeBuffersFn, void** executeCommandListsFn) {
+namespace {
+    constexpr DWORD kGpuWaitTimeoutMs = 2000;
+
+    thread_local bool t_inPresentHook = false;
+
+    struct PresentScope {
+        bool owner;
+        PresentScope() : owner(!t_inPresentHook) { if (owner) t_inPresentHook = true; }
+        ~PresentScope() { if (owner) t_inPresentHook = false; }
+    };
+
+    DXGI_FORMAT ResolveRtvFormat(DXGI_FORMAT format) {
+        switch (format) {
+        case DXGI_FORMAT_R8G8B8A8_TYPELESS:     return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case DXGI_FORMAT_B8G8R8A8_TYPELESS:     return DXGI_FORMAT_B8G8R8A8_UNORM;
+        case DXGI_FORMAT_R10G10B10A2_TYPELESS:  return DXGI_FORMAT_R10G10B10A2_UNORM;
+        case DXGI_FORMAT_R16G16B16A16_TYPELESS: return DXGI_FORMAT_R16G16B16A16_FLOAT;
+        default:                                return format;
+        }
+    }
+
+    bool ProcessHasForeground() {
+        DWORD pid = 0;
+        GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+        return pid == GetCurrentProcessId();
+    }
+}
+
+bool GUI::FindTargetFunctions(void** presentFn, void** present1Fn, void** createSwapChainFn, void** createSwapChainForHwndFn) {
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(WNDCLASSEXW);
     wc.style = CS_CLASSDC;
@@ -65,11 +114,12 @@ bool GUI::FindTargetFunctions(void** presentFn, void** resizeBuffersFn, void** e
         if (FAILED(dummyFactory->CreateSwapChainForHwnd(dummyQueue, dummyWindow, &swapDesc, nullptr, nullptr, &dummySwapChain))) break;
 
         void** swapChainVTable = *reinterpret_cast<void***>(dummySwapChain);
-        void** queueVTable = *reinterpret_cast<void***>(dummyQueue);
+        void** factoryVTable = *reinterpret_cast<void***>(dummyFactory);
 
         *presentFn = swapChainVTable[8];
-        *resizeBuffersFn = swapChainVTable[13];
-        *executeCommandListsFn = queueVTable[10];
+        *present1Fn = swapChainVTable[22];
+        *createSwapChainFn = factoryVTable[10];
+        *createSwapChainForHwndFn = factoryVTable[15];
 
         success = true;
     } while (false);
@@ -89,73 +139,218 @@ bool GUI::LoadGUI() {
     if (!Settings::EnableGUI) return false;
 
     void* presentFn = nullptr;
-    void* resizeBuffersFn = nullptr;
-    void* executeCommandListsFn = nullptr;
+    void* present1Fn = nullptr;
+    void* createSwapChainFn = nullptr;
+    void* createSwapChainForHwndFn = nullptr;
 
-    if (!FindTargetFunctions(&presentFn, &resizeBuffersFn, &executeCommandListsFn)) {
+    if (!FindTargetFunctions(&presentFn, &present1Fn, &createSwapChainFn, &createSwapChainForHwndFn)) {
         MessageBoxA(NULL, "Failed to locate DirectX 12 functions. The overlay menu will be disabled.", "Dank farrik!", MB_OK | MB_ICONWARNING);
         return false;
     }
 
     if (MH_CreateHook(presentFn, reinterpret_cast<LPVOID>(&HookedPresent), reinterpret_cast<LPVOID*>(&originalPresent)) != MH_OK ||
-        MH_CreateHook(resizeBuffersFn, reinterpret_cast<LPVOID>(&HookedResizeBuffers), reinterpret_cast<LPVOID*>(&originalResizeBuffers)) != MH_OK ||
-        MH_CreateHook(executeCommandListsFn, reinterpret_cast<LPVOID>(&HookedExecuteCommandLists), reinterpret_cast<LPVOID*>(&originalExecuteCommandLists)) != MH_OK) {
+        MH_CreateHook(createSwapChainFn, reinterpret_cast<LPVOID>(&HookedCreateSwapChain), reinterpret_cast<LPVOID*>(&originalCreateSwapChain)) != MH_OK ||
+        MH_CreateHook(createSwapChainForHwndFn, reinterpret_cast<LPVOID>(&HookedCreateSwapChainForHwnd), reinterpret_cast<LPVOID*>(&originalCreateSwapChainForHwnd)) != MH_OK) {
         MessageBoxA(NULL, "Failed to hook DirectX 12 functions. The overlay menu will be disabled.", "Dank farrik!", MB_OK | MB_ICONWARNING);
         return false;
     }
+
+    if (MH_CreateHook(present1Fn, reinterpret_cast<LPVOID>(&HookedPresent1), reinterpret_cast<LPVOID*>(&originalPresent1)) != MH_OK) {
+        originalPresent1 = nullptr;
+    }
+
+    MH_EnableHook(createSwapChainFn);
+    MH_EnableHook(createSwapChainForHwndFn);
 
     return true;
 }
 
 void GUI::UnloadGUI() {
-    if (!initialised) return;
+    {
+        std::lock_guard<std::recursive_mutex> lock(stateMutex);
+        ShutdownGraphics();
+    }
+    ReleaseRegisteredQueues();
+}
 
-    if (gameWindow && originalWndProc) {
-        SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(originalWndProc));
+void GUI::RegisterSwapChain(IUnknown* queueOrDevice, IUnknown* swapChain, HWND window) {
+    if (!queueOrDevice || !swapChain) return;
+
+    ID3D12CommandQueue* queue = nullptr;
+    if (FAILED(queueOrDevice->QueryInterface(IID_PPV_ARGS(&queue))) || !queue) return;
+
+    void* identity = swapChain;
+    IUnknown* canonical = nullptr;
+    if (SUCCEEDED(swapChain->QueryInterface(IID_PPV_ARGS(&canonical))) && canonical) {
+        identity = canonical;
+        canonical->Release();
     }
 
-    ImGui_ImplDX12_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    const D3D12_COMMAND_QUEUE_DESC desc = queue->GetDesc();
 
-    ReleaseRenderTargets();
+    std::vector<ID3D12CommandQueue*> toRelease;
+    {
+        std::lock_guard<std::mutex> lock(swapChainQueuesMutex);
+        for (auto it = swapChainQueues.begin(); it != swapChainQueues.end();) {
+            if (it->swapChain == identity || (window && it->window == window)) {
+                toRelease.push_back(it->queue);
+                it = swapChainQueues.erase(it);
+            } else {
+                ++it;
+            }
+        }
 
-    for (UINT i = 0; i < frameCount; ++i) {
+        constexpr size_t kMaxEntries = 8;
+        while (swapChainQueues.size() >= kMaxEntries) {
+            toRelease.push_back(swapChainQueues.front().queue);
+            swapChainQueues.erase(swapChainQueues.begin());
+        }
+
+        SwapChainQueue entry;
+        entry.swapChain = identity;
+        entry.window = window;
+        entry.queue = queue;
+        swapChainQueues.push_back(entry);
+    }
+
+    for (ID3D12CommandQueue* stale : toRelease) stale->Release();
+}
+
+bool GUI::GuardedRegisterSwapChain(IUnknown* queueOrDevice, IUnknown* swapChain, HWND window) {
+    RegisterSwapChain(queueOrDevice, swapChain, window);
+    return true;
+}
+
+ID3D12CommandQueue* GUI::FindQueueFor(IUnknown* swapChain) {
+    void* identity = swapChain;
+    IUnknown* canonical = nullptr;
+    if (SUCCEEDED(swapChain->QueryInterface(IID_PPV_ARGS(&canonical))) && canonical) {
+        identity = canonical;
+        canonical->Release();
+    }
+
+    std::lock_guard<std::mutex> lock(swapChainQueuesMutex);
+    for (const auto& entry : swapChainQueues) {
+        if (entry.swapChain == identity) {
+            entry.queue->AddRef();
+            return entry.queue;
+        }
+    }
+    return nullptr;
+}
+
+void GUI::ReleaseRegisteredQueues() {
+    std::vector<SwapChainQueue> entries;
+    {
+        std::lock_guard<std::mutex> lock(swapChainQueuesMutex);
+        entries.swap(swapChainQueues);
+    }
+    for (auto& entry : entries) entry.queue->Release();
+}
+
+void GUI::WaitForGpu() {
+    if (!commandQueue || !fence || !fenceEvent) return;
+
+    const UINT64 value = ++fenceValue;
+    if (FAILED(commandQueue->Signal(fence, value))) return;
+
+    if (fence->GetCompletedValue() < value && SUCCEEDED(fence->SetEventOnCompletion(value, fenceEvent))) {
+        WaitForSingleObject(fenceEvent, kGpuWaitTimeoutMs);
+    }
+}
+
+bool GUI::WaitForFrame(UINT index) {
+    const UINT64 target = frameFenceValues[index];
+    if (target == 0 || fence->GetCompletedValue() >= target) return true;
+
+    if (FAILED(fence->SetEventOnCompletion(target, fenceEvent))) return false;
+    return WaitForSingleObject(fenceEvent, kGpuWaitTimeoutMs) == WAIT_OBJECT_0;
+}
+
+void GUI::ShutdownGraphics() {
+    initialised = false;
+    activeSwapChain = nullptr;
+
+    WaitForGpu();
+
+    if (gameWindow && originalWndProc && IsWindow(gameWindow)) {
+        if (GetWindowLongPtrW(gameWindow, GWLP_WNDPROC) == reinterpret_cast<LONG_PTR>(&WndProcHook)) {
+            SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(originalWndProc));
+            originalWndProc = nullptr;
+        }
+    }
+
+    {
+        std::lock_guard<std::recursive_mutex> imguiLock(imguiMutex);
+        if (imguiDx12Ready) { ImGui_ImplDX12_Shutdown(); imguiDx12Ready = false; }
+        if (imguiWin32Ready) { ImGui_ImplWin32_Shutdown(); imguiWin32Ready = false; }
+        if (imguiContextCreated) { ImGui::DestroyContext(); imguiContextCreated = false; }
+    }
+
+    for (UINT i = 0; i < BackBufferCount; ++i) {
         if (frameContexts[i].commandAllocator) {
             frameContexts[i].commandAllocator->Release();
-            frameContexts[i].commandAllocator = nullptr;
         }
+        frameContexts[i] = {};
+        frameFenceValues[i] = 0;
     }
 
     if (commandList) { commandList->Release(); commandList = nullptr; }
     if (rtvDescriptorHeap) { rtvDescriptorHeap->Release(); rtvDescriptorHeap = nullptr; }
     if (srvDescriptorHeap) { srvDescriptorHeap->Release(); srvDescriptorHeap = nullptr; }
+    if (fence) { fence->Release(); fence = nullptr; }
+    if (fenceEvent) { CloseHandle(fenceEvent); fenceEvent = nullptr; }
+    if (commandQueue) { commandQueue->Release(); commandQueue = nullptr; }
     if (device) { device->Release(); device = nullptr; }
 
-    initialised = false;
+    fenceValue = 0;
+    frameCount = 0;
+    renderCounter = 0;
 }
 
 void GUI::InitialiseImGui(IDXGISwapChain3* swapChain) {
-    if (FAILED(swapChain->GetDevice(IID_PPV_ARGS(&device)))) return;
+    auto fail = [](const char* reason) {
+        ShutdownGraphics();
+        Visible = false;
+        if (++initFailures >= MaxInitFailures) {
+            disabled = true;
+        }
+    };
+
+    ID3D12CommandQueue* queue = FindQueueFor(swapChain);
+    if (!queue) {
+        if (unknownQueueSwapChain != swapChain) {
+            unknownQueueSwapChain = swapChain;
+        }
+        Visible = false;
+        return;
+    }
+    commandQueue = queue;
+
+    ID3D12Device* queueDevice = nullptr;
+    if (FAILED(queue->GetDevice(IID_PPV_ARGS(&queueDevice))) || !queueDevice) { fail("could not get the queue's device"); return; }
+    device = queueDevice;
 
     DXGI_SWAP_CHAIN_DESC swapDesc{};
-    if (FAILED(swapChain->GetDesc(&swapDesc))) return;
+    if (FAILED(swapChain->GetDesc(&swapDesc))) { fail("GetDesc failed"); return; }
+    if (!swapDesc.OutputWindow) { fail("swap chain has no HWND"); return; }
+    if (swapDesc.BufferCount == 0 || swapDesc.BufferCount > BackBufferCount) { fail("unsupported back buffer count"); return; }
 
     gameWindow = swapDesc.OutputWindow;
     frameCount = swapDesc.BufferCount;
-    if (frameCount == 0 || frameCount > BackBufferCount) frameCount = BackBufferCount;
+    backBufferFormat = ResolveRtvFormat(swapDesc.BufferDesc.Format);
 
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.NumDescriptors = frameCount;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    if (FAILED(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap)))) return;
+    if (FAILED(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap)))) { fail("RTV heap"); return; }
 
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.NumDescriptors = 1;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    if (FAILED(device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap)))) return;
+    if (FAILED(device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap)))) { fail("SRV heap"); return; }
 
     const UINT rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -164,70 +359,101 @@ void GUI::InitialiseImGui(IDXGISwapChain3* swapChain) {
         frameContexts[i].rtvHandle = rtvHandle;
         rtvHandle.ptr += rtvDescriptorSize;
 
-        if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frameContexts[i].commandAllocator)))) return;
+        if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frameContexts[i].commandAllocator)))) { fail("command allocator"); return; }
     }
 
-    if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frameContexts[0].commandAllocator, nullptr, IID_PPV_ARGS(&commandList)))) return;
+    if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frameContexts[0].commandAllocator, nullptr, IID_PPV_ARGS(&commandList)))) { fail("command list"); return; }
     commandList->Close();
 
-    CreateRenderTargets(swapChain);
+    if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)))) { fail("fence"); return; }
+    fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (!fenceEvent) { fail("fence event"); return; }
+    fenceValue = 0;
+    renderCounter = 0;
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.IniFilename = nullptr;
-    ImGui::StyleColorsDark();
+    {
+        std::lock_guard<std::recursive_mutex> imguiLock(imguiMutex);
 
-    if (!ImGui_ImplWin32_Init(gameWindow)) return;
-    if (!ImGui_ImplDX12_Init(device, static_cast<int>(frameCount), DXGI_FORMAT_R8G8B8A8_UNORM, srvDescriptorHeap,
-        srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-        srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart())) return;
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        imguiContextCreated = true;
 
-    originalWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProcHook)));
+        ImGuiIO& io = ImGui::GetIO();
+        io.IniFilename = nullptr;
+        ImGui::StyleColorsDark();
 
+        if (!ImGui_ImplWin32_Init(gameWindow)) { fail("ImGui Win32 backend"); return; }
+        imguiWin32Ready = true;
+
+        if (!ImGui_ImplDX12_Init(device, static_cast<int>(frameCount), backBufferFormat, srvDescriptorHeap,
+            srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+            srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart())) { fail("ImGui DX12 backend"); return; }
+        imguiDx12Ready = true;
+    }
+
+    if (GetWindowLongPtrW(gameWindow, GWLP_WNDPROC) != reinterpret_cast<LONG_PTR>(&WndProcHook)) {
+        originalWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProcHook)));
+    }
+
+    activeSwapChain = swapChain;
     initialised = true;
+    initFailures = 0;
 }
 
-void GUI::CreateRenderTargets(IDXGISwapChain3* swapChain) {
-    for (UINT i = 0; i < frameCount; ++i) {
-        ID3D12Resource* backBuffer = nullptr;
-        if (SUCCEEDED(swapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer)))) {
-            device->CreateRenderTargetView(backBuffer, nullptr, frameContexts[i].rtvHandle);
-            frameContexts[i].backBuffer = backBuffer;
-        }
-    }
-}
+bool GUI::SwapChainStillMatches(IDXGISwapChain3* swapChain) {
+    DXGI_SWAP_CHAIN_DESC desc{};
+    if (FAILED(swapChain->GetDesc(&desc))) return false;
 
-void GUI::ReleaseRenderTargets() {
-    for (UINT i = 0; i < frameCount; ++i) {
-        if (frameContexts[i].backBuffer) {
-            frameContexts[i].backBuffer->Release();
-            frameContexts[i].backBuffer = nullptr;
-        }
-    }
+    return desc.BufferCount == frameCount &&
+        desc.OutputWindow == gameWindow &&
+        ResolveRtvFormat(desc.BufferDesc.Format) == backBufferFormat;
 }
 
 void GUI::RenderFrame(IDXGISwapChain3* swapChain) {
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
-
-    if (Visible) {
-        DrawMenu();
+    if (FAILED(device->GetDeviceRemovedReason())) {
+        disabled = true;
+        ShutdownGraphics();
+        return;
     }
 
-    ImGui::Render();
+    const UINT ring = static_cast<UINT>(renderCounter % frameCount);
+    FrameContext& frame = frameContexts[ring];
+    if (!WaitForFrame(ring)) return;
 
     const UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
-    FrameContext& frame = frameContexts[backBufferIndex];
 
-    frame.commandAllocator->Reset();
-    commandList->Reset(frame.commandAllocator, nullptr);
+    ID3D12Resource* backBuffer = nullptr;
+    if (FAILED(swapChain->GetBuffer(backBufferIndex, IID_PPV_ARGS(&backBuffer))) || !backBuffer) return;
+
+    struct BackBufferRelease {
+        ID3D12Resource*& resource;
+        ~BackBufferRelease() { if (resource) { resource->Release(); resource = nullptr; } }
+    } backBufferRelease{ backBuffer };
+
+    {
+        std::lock_guard<std::recursive_mutex> imguiLock(imguiMutex);
+
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        DrawMenu();
+
+        ImGui::Render();
+    }
+
+    if (FAILED(frame.commandAllocator->Reset())) return;
+    if (FAILED(commandList->Reset(frame.commandAllocator, nullptr))) return;
+
+    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
+    rtvDesc.Format = backBufferFormat;
+    rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+    device->CreateRenderTargetView(backBuffer, &rtvDesc, frame.rtvHandle);
 
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource = frame.backBuffer;
+    barrier.Transition.pResource = backBuffer;
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -237,20 +463,22 @@ void GUI::RenderFrame(IDXGISwapChain3* swapChain) {
     commandList->SetDescriptorHeaps(1, &srvDescriptorHeap);
 
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
+    ++renderCounter;
 
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     commandList->ResourceBarrier(1, &barrier);
 
-    commandList->Close();
+    if (FAILED(commandList->Close())) return;
 
     ID3D12CommandList* lists[] = { commandList };
     commandQueue->ExecuteCommandLists(1, lists);
-}
 
-// ---------------------------------------------------------------------------
-// Plugin host API
-// ---------------------------------------------------------------------------
+    const UINT64 value = ++fenceValue;
+    if (SUCCEEDED(commandQueue->Signal(fence, value))) {
+        frameFenceValues[ring] = value;
+    }
+}
 
 void GUI::Host_Text(ModLoaderPluginCtx*, const char* fmt, ...) {
     char buffer[1024];
@@ -461,59 +689,104 @@ void GUI::DrawMenu() {
 }
 
 LRESULT CALLBACK GUI::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (msg == WM_KEYDOWN && wParam == Settings::MenuToggleKey) {
-        Visible = !Visible;
-    }
+    if (initialised.load() && Visible) {
+        std::lock_guard<std::recursive_mutex> lock(imguiMutex);
 
-    if (Visible) {
-        ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+        if (initialised.load() && imguiContextCreated) {
+            ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
 
-        ImGuiIO& io = ImGui::GetIO();
+            ImGuiIO& io = ImGui::GetIO();
 
-        const bool isKeyboardMsg = (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_CHAR ||
-            msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP);
-        const bool isMouseMsg = (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST);
+            const bool isKeyboardMsg = (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_CHAR ||
+                msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP);
+            const bool isMouseMsg = (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST);
 
-        if ((io.WantCaptureKeyboard && isKeyboardMsg) || (io.WantCaptureMouse && isMouseMsg)) {
-            return TRUE;
+            if ((io.WantCaptureKeyboard && isKeyboardMsg) || (io.WantCaptureMouse && isMouseMsg)) {
+                return TRUE;
+            }
         }
     }
 
-    return CallWindowProcW(originalWndProc, hWnd, msg, wParam, lParam);
+    return originalWndProc ? CallWindowProcW(originalWndProc, hWnd, msg, wParam, lParam) : DefWindowProcW(hWnd, msg, wParam, lParam);
+}
+
+void GUI::PollToggleKey() {
+    static bool wasDown = false;
+
+    const bool down = (GetAsyncKeyState(static_cast<int>(Settings::MenuToggleKey)) & 0x8000) != 0;
+    if (down && !wasDown && ProcessHasForeground()) {
+        Visible = !Visible;
+    }
+    wasDown = down;
+}
+
+void GUI::OnPresent(IDXGISwapChain3* swapChain, UINT flags) {
+    if (!Settings::EnableGUI || disabled || !swapChain) return;
+
+    if (flags & DXGI_PRESENT_TEST) return;
+
+    std::lock_guard<std::recursive_mutex> lock(stateMutex);
+
+    PollToggleKey();
+    if (!Visible) return;
+
+    if (initialised && swapChain != activeSwapChain) {
+        DXGI_SWAP_CHAIN_DESC desc{};
+        if (FAILED(swapChain->GetDesc(&desc)) || desc.OutputWindow != gameWindow) return;
+        ShutdownGraphics();
+    }
+
+    if (initialised && !SwapChainStillMatches(swapChain)) {
+        ShutdownGraphics();
+    }
+
+    if (!initialised) {
+        InitialiseImGui(swapChain);
+        if (!initialised) return;
+    }
+
+    RenderFrame(swapChain);
+}
+
+bool GUI::GuardedOnPresent(IDXGISwapChain3* swapChain, UINT flags) {
+    OnPresent(swapChain, flags);
+    return true;
 }
 
 HRESULT STDMETHODCALLTYPE GUI::HookedPresent(IDXGISwapChain3* swapChain, UINT syncInterval, UINT flags) {
-    if (Settings::EnableGUI) {
-        if (!initialised && commandQueue) {
-            InitialiseImGui(swapChain);
-        }
-
-        if (initialised) {
-            RenderFrame(swapChain);
-        }
+    PresentScope scope;
+    if (scope.owner && !GuardedOnPresent(swapChain, flags)) {
+        disabled = true;
+        initialised = false;
     }
 
     return originalPresent(swapChain, syncInterval, flags);
 }
 
-HRESULT STDMETHODCALLTYPE GUI::HookedResizeBuffers(IDXGISwapChain3* swapChain, UINT bufferCount, UINT width, UINT height, DXGI_FORMAT newFormat, UINT swapChainFlags) {
-    if (initialised) {
-        ReleaseRenderTargets();
+HRESULT STDMETHODCALLTYPE GUI::HookedPresent1(IDXGISwapChain3* swapChain, UINT syncInterval, UINT flags, const DXGI_PRESENT_PARAMETERS* params) {
+    PresentScope scope;
+    if (scope.owner && !GuardedOnPresent(swapChain, flags)) {
+        disabled = true;
+        initialised = false;
     }
 
-    HRESULT result = originalResizeBuffers(swapChain, bufferCount, width, height, newFormat, swapChainFlags);
+    return originalPresent1(swapChain, syncInterval, flags, params);
+}
 
-    if (initialised && SUCCEEDED(result)) {
-        CreateRenderTargets(swapChain);
+HRESULT STDMETHODCALLTYPE GUI::HookedCreateSwapChain(IDXGIFactory* factory, IUnknown* device, DXGI_SWAP_CHAIN_DESC* desc, IDXGISwapChain** swapChain) {
+    const HRESULT result = originalCreateSwapChain(factory, device, desc, swapChain);
+
+    if (SUCCEEDED(result) && swapChain && *swapChain) {
+        GuardedRegisterSwapChain(device, *swapChain, desc ? desc->OutputWindow : nullptr);
     }
-
     return result;
 }
 
-void STDMETHODCALLTYPE GUI::HookedExecuteCommandLists(ID3D12CommandQueue* queue, UINT numCommandLists, ID3D12CommandList* const* commandLists) {
-    if (!commandQueue && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-        commandQueue = queue;
-    }
+HRESULT STDMETHODCALLTYPE GUI::HookedCreateSwapChainForHwnd(IDXGIFactory2* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc, IDXGIOutput* restrictToOutput, IDXGISwapChain1** swapChain) {
+    const HRESULT result = originalCreateSwapChainForHwnd(factory, device, hwnd, desc, fullscreenDesc, restrictToOutput, swapChain);
 
-    originalExecuteCommandLists(queue, numCommandLists, commandLists);
+    if (SUCCEEDED(result) && swapChain && *swapChain) {
+        GuardedRegisterSwapChain(device, *swapChain, hwnd);
+    }
+    return result;
 }
