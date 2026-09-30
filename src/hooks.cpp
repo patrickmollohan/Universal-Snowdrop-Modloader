@@ -67,7 +67,7 @@ bool Hooks::UnloadHooks() {
 
 bool __fastcall Hooks::HookedLoadFile(uintptr_t fileCtx, LPCSTR filePath, unsigned int flags) {
     if (Utilities::Files::FileExists(filePath)) [[unlikely]] {
-        flags = (flags & ~0x2u) | 0x400u;
+        flags |= (1 << 0xA);
     }
 
     return origLoadFilePtr(fileCtx, filePath, flags);
