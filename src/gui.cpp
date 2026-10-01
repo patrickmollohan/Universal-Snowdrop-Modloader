@@ -1,6 +1,9 @@
 #include "pch.hpp"
 #include "gui.hpp"
 
+#include <cstring>
+#include <type_traits>
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 bool GUI::Visible = false;
@@ -480,13 +483,37 @@ void GUI::RenderFrame(IDXGISwapChain3* swapChain) {
     }
 }
 
+void GUI::Host_SetPluginInfo(ModLoaderPluginCtx* ctx, const char* name, const char* version, const char* author) {
+    if (!ctx) return;
+    ctx->name = name ? name : "";
+    ctx->version = version ? version : "";
+    ctx->author = author ? author : "";
+}
+
+void GUI::Host_SetDrawMenuCallback(ModLoaderPluginCtx* ctx, ModLoaderDrawMenuFn fn) {
+    if (ctx) ctx->drawMenu = fn;
+}
+
+void GUI::Host_SetCommandCallback(ModLoaderPluginCtx* ctx, ModLoaderCommandFn fn) {
+    if (ctx) ctx->onCommand = fn;
+}
+
 void GUI::Host_Text(ModLoaderPluginCtx*, const char* fmt, ...) {
     char buffer[1024];
     va_list args;
     va_start(args, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
-    ImGui::TextUnformatted(buffer);
+    ImGui::TextWrapped("%s", buffer);
+}
+
+void GUI::Host_TextWrapped(ModLoaderPluginCtx*, const char* fmt, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    ImGui::TextWrapped("%s", buffer);
 }
 
 bool GUI::Host_Checkbox(ModLoaderPluginCtx*, const char* label, bool* value) {
@@ -572,25 +599,72 @@ void GUI::Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...) {
     }
 }
 
-static const ModLoaderHostAPI g_PluginHostAPI = {
-    MODLOADER_PLUGIN_API_VERSION,
-    &GUI::Host_Text,
-    &GUI::Host_Checkbox,
-    &GUI::Host_SliderInt,
-    &GUI::Host_SliderFloat,
-    &GUI::Host_InputText,
-    &GUI::Host_Button,
-    &GUI::Host_Separator,
-    &GUI::Host_GetConfigBool,
-    &GUI::Host_GetConfigInt,
-    &GUI::Host_SetConfigBool,
-    &GUI::Host_SetConfigInt,
-    &GUI::Host_SendCommand,
-    &GUI::Host_Log,
-};
+uintptr_t GUI::Host_FindPattern(ModLoaderPluginCtx*, const char* pattern) {
+    if (!pattern) return 0;
+    return Utilities::Memory::FindPattern(pattern);
+}
 
-const ModLoaderHostAPI* GUI::GetPluginHostAPI() {
-    return &g_PluginHostAPI;
+static MemoryPatch* FindOwnedPatch(ModLoaderPluginCtx* ctx, ModLoaderPatch* handle) {
+    if (!ctx || !handle) return nullptr;
+    for (auto& patch : ctx->patches) {
+        if (patch.get() == reinterpret_cast<MemoryPatch*>(handle)) return patch.get();
+    }
+    return nullptr;
+}
+
+static ModLoaderPatch* RegisterPatch(ModLoaderPluginCtx* ctx, std::unique_ptr<MemoryPatch> patch) {
+    if (!ctx || !patch) return nullptr;
+    auto* handle = reinterpret_cast<ModLoaderPatch*>(patch.get());
+    ctx->patches.push_back(std::move(patch));
+    return handle;
+}
+
+ModLoaderPatch* GUI::Host_CreatePatch(ModLoaderPluginCtx* ctx, const char* pattern, size_t offset, const uint8_t* bytes, size_t size) {
+    return RegisterPatch(ctx, Utilities::Memory::CreatePatch(pattern, offset, bytes, size));
+}
+
+ModLoaderPatch* GUI::Host_CreatePatchAt(ModLoaderPluginCtx* ctx, uintptr_t address, const uint8_t* bytes, size_t size) {
+    return RegisterPatch(ctx, Utilities::Memory::CreatePatch(address, bytes, size));
+}
+
+bool GUI::Host_SetPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch, bool enabled) {
+    MemoryPatch* p = FindOwnedPatch(ctx, patch);
+    return p && Utilities::Memory::SetPatchEnabled(*p, enabled);
+}
+
+bool GUI::Host_IsPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch) {
+    const MemoryPatch* p = FindOwnedPatch(ctx, patch);
+    return p && p->enabled;
+}
+
+uintptr_t GUI::Host_GetPatchAddress(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch) {
+    const MemoryPatch* p = FindOwnedPatch(ctx, patch);
+    return p ? p->address : 0;
+}
+
+void GUI::Host_DestroyPatch(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch) {
+    MemoryPatch* p = FindOwnedPatch(ctx, patch);
+    if (!p) return;
+
+    Utilities::Memory::SetPatchEnabled(*p, false);
+    std::erase_if(ctx->patches, [p](const auto& owned) { return owned.get() == p; });
+}
+
+#define MODLOADER_X_CHECK(ret, name, params) \
+    static_assert(std::is_same_v<decltype(&GUI::Host_##name), ret (*) params>, \
+                  "GUI::Host_" #name " does not match its declaration in MODLOADER_API");
+MODLOADER_API(MODLOADER_X_CHECK)
+#undef MODLOADER_X_CHECK
+
+void* GUI::GetProc(const char* name) {
+    if (!name) return nullptr;
+
+#define MODLOADER_X_LOOKUP(ret, fname, params) \
+    if (strcmp(name, #fname) == 0) return reinterpret_cast<void*>(&GUI::Host_##fname);
+    MODLOADER_API(MODLOADER_X_LOOKUP)
+#undef MODLOADER_X_LOOKUP
+
+    return nullptr;
 }
 
 void GUI::DrawMenu() {
@@ -642,9 +716,9 @@ void GUI::DrawMenu() {
             for (int i = 0; i < static_cast<int>(plugins.size()); ++i) {
                 LoadedPlugin& plugin = plugins[i];
                 const bool isLoaded = plugin.module != nullptr;
-                const bool hasMenu = isLoaded && plugin.apiInitialised && plugin.info.DrawMenu != nullptr;
+                const bool hasMenu = isLoaded && plugin.apiInitialised && plugin.ctx->drawMenu != nullptr;
 
-                std::string label = (plugin.apiInitialised && plugin.info.name) ? plugin.info.name : plugin.fileName;
+                std::string label = (plugin.apiInitialised && !plugin.ctx->name.empty()) ? plugin.ctx->name : plugin.fileName;
                 if (plugin.enabled != isLoaded) {
                     label += plugin.enabled ? " (enabled on restart)" : " (disabled on restart)";
                 }
@@ -676,7 +750,7 @@ void GUI::DrawMenu() {
                 }
 
                 if (hasMenu && open) {
-                    plugin.info.DrawMenu(&g_PluginHostAPI, plugin.ctx.get());
+                    plugin.ctx->drawMenu(plugin.ctx.get());
                     ImGui::TreePop();
                 }
 

@@ -99,7 +99,7 @@ project "Universal-Snowdrop-Modloader"
 -- =========================================
 group "Plugins"
 
-local function PluginProject(name)
+local function PluginProject(name, useMinHook)
     project(name)
         kind "SharedLib"
         language "C++"
@@ -107,13 +107,14 @@ local function PluginProject(name)
         targetname(name)
         targetdir "bin/%{cfg.buildcfg}/plugins"
 
-        includedirs {
-            "include",
-            "lib/MinHook/include"
-        }
+        includedirs { "include" }
 
         files { "plugin_templates/" .. name .. "/**.cpp" }
-        files(MinHookFiles)
+
+        if useMinHook then
+            includedirs { "lib/MinHook/include" }
+            files(MinHookFiles)
+        end
 
         characterset "UNICODE"
         defines { "NDEBUG" }
@@ -127,4 +128,5 @@ local function PluginProject(name)
         filter {}
 end
 
-PluginProject("PerformanceTweaks")
+PluginProject("PerformanceTweaks", true)
+PluginProject("OutlawsFrameGen")

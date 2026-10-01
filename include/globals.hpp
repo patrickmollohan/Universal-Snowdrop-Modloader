@@ -5,6 +5,13 @@ struct PatternByte {
     bool wildcard;
 };
 
+struct MemoryPatch {
+    uintptr_t address = 0;
+    std::vector<uint8_t> patched;
+    std::vector<uint8_t> original;
+    bool enabled = false;
+};
+
 struct ModuleInfo {
     std::filesystem::path fullPath;
     std::filesystem::path directory;

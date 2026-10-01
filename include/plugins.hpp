@@ -9,13 +9,19 @@ inline constexpr const char* kPluginConfigSection = "Settings";
 struct ModLoaderPluginCtx {
     std::string pluginId;
     std::string configPath;
+    std::vector<std::unique_ptr<MemoryPatch>> patches;
+
+    std::string name;
+    std::string version;
+    std::string author;
+    ModLoaderDrawMenuFn drawMenu = nullptr;
+    ModLoaderCommandFn onCommand = nullptr;
 };
 
 struct LoadedPlugin {
     HMODULE module = nullptr;
     bool enabled = true;
     std::string fileName;
-    ModLoaderPluginInfo info{};
     std::unique_ptr<ModLoaderPluginCtx> ctx;
     bool apiInitialised = false;
 };

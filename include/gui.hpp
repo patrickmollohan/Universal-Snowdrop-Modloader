@@ -23,7 +23,7 @@ public:
 
     static bool Visible;
 
-    static const ModLoaderHostAPI* GetPluginHostAPI();
+    static void* GetProc(const char* name);
 
 private:
     static constexpr UINT BackBufferCount = DXGI_MAX_SWAP_CHAIN_BUFFERS;
@@ -73,7 +73,11 @@ private:
     static WNDPROC originalWndProc;
 
 public:
+    static void Host_SetPluginInfo(ModLoaderPluginCtx* ctx, const char* name, const char* version, const char* author);
+    static void Host_SetDrawMenuCallback(ModLoaderPluginCtx* ctx, ModLoaderDrawMenuFn fn);
+    static void Host_SetCommandCallback(ModLoaderPluginCtx* ctx, ModLoaderCommandFn fn);
     static void Host_Text(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static void Host_TextWrapped(ModLoaderPluginCtx* ctx, const char* fmt, ...);
     static bool Host_Checkbox(ModLoaderPluginCtx* ctx, const char* label, bool* value);
     static bool Host_SliderInt(ModLoaderPluginCtx* ctx, const char* label, int* value, int min, int max);
     static bool Host_SliderFloat(ModLoaderPluginCtx* ctx, const char* label, float* value, float min, float max);
@@ -86,6 +90,13 @@ public:
     static void Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value);
     static bool Host_SendCommand(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);
     static void Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static uintptr_t Host_FindPattern(ModLoaderPluginCtx* ctx, const char* pattern);
+    static ModLoaderPatch* Host_CreatePatch(ModLoaderPluginCtx* ctx, const char* pattern, size_t offset, const uint8_t* bytes, size_t size);
+    static ModLoaderPatch* Host_CreatePatchAt(ModLoaderPluginCtx* ctx, uintptr_t address, const uint8_t* bytes, size_t size);
+    static bool Host_SetPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch, bool enabled);
+    static bool Host_IsPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
+    static uintptr_t Host_GetPatchAddress(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
+    static void Host_DestroyPatch(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
 
 private:
     static void InitialiseImGui(IDXGISwapChain3* swapChain);

@@ -23,7 +23,7 @@
 
 #pragma comment(lib, "avrt.lib")
 
-#define POWER_THROTTLING_EXECUTION_SPEED 0x1
+#define POWER_THROTTLING_EXECUTION_SPEED  0x1
 #define PROCESS_PRIORITY_CLASS_IDLE         1
 #define PROCESS_PRIORITY_CLASS_NORMAL       2
 #define PROCESS_PRIORITY_CLASS_HIGH         3
@@ -277,10 +277,16 @@ static uintptr_t __stdcall _beginthreadex_Hook(void* security, unsigned stackSiz
 }
 
 // ---------------------------------------------------------------------------
+// Host API
+// ---------------------------------------------------------------------------
+static ModLoaderHostAPI g_hostApi;
+static const ModLoaderHostAPI* const host = &g_hostApi;
+
+// ---------------------------------------------------------------------------
 // Menu
 // ---------------------------------------------------------------------------
-static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
-    host->Text(ctx, "Disk cache");
+static void DrawMenu(ModLoaderPluginCtx* ctx) {
+    host->TextWrapped(ctx, "Disk cache");
     if (host->Checkbox(ctx, "Enable for CreateFileA", &s_cacheCreateFileA)) {
         host->SetConfigBool(ctx, "CacheCreateFileA", kCommentCacheA, s_cacheCreateFileA);
     }
@@ -289,7 +295,7 @@ static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
     }
 
     host->Separator(ctx);
-    host->Text(ctx, "Priorities");
+    host->TextWrapped(ctx, "Priorities");
 
     int cpuLevel = s_cpuPriorityLevel;
     if (host->SliderInt(ctx, "CPU priority (0=Normal, 1=Medium, 2=High)", &cpuLevel, 0, 2)) {
@@ -297,7 +303,7 @@ static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
         host->SetConfigInt(ctx, "CPUPriority", kCommentCpuPriority, s_cpuPriorityLevel);
         ApplyCpuPriorityNow();
     }
-    host->Text(ctx, "Current: %s", kPriorityLevelNames[s_cpuPriorityLevel]);
+    host->TextWrapped(ctx, "Current: %s", kPriorityLevelNames[s_cpuPriorityLevel]);
 
     int threadLevel = s_threadPriorityLevel;
     if (host->SliderInt(ctx, "Thread priority (0=Normal, 1=Medium, 2=High)", &threadLevel, 0, 2)) {
@@ -305,7 +311,7 @@ static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
         host->SetConfigInt(ctx, "ThreadPriority", kCommentThreadPriority, s_threadPriorityLevel);
         ApplyThreadPrioritiesNow();
     }
-    host->Text(ctx, "Current: %s", kPriorityLevelNames[s_threadPriorityLevel]);
+    host->TextWrapped(ctx, "Current: %s", kPriorityLevelNames[s_threadPriorityLevel]);
 
     if (host->Checkbox(ctx, "High I/O priority", &s_highIoPriority)) {
         host->SetConfigBool(ctx, "HighIOPriority", kCommentHighIo, s_highIoPriority);
@@ -313,7 +319,7 @@ static void DrawMenu(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx) {
     }
 }
 
-static void OnCommand(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx, const char* command) {
+static void OnCommand(ModLoaderPluginCtx* ctx, const char* command) {
     if (!command) return;
 
     if (strcmp(command, "reapply") == 0) {
@@ -354,8 +360,12 @@ static bool InstallHooks() {
     return true;
 }
 
-extern "C" __declspec(dllexport) bool ModLoader_InitPlugin(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx, ModLoaderPluginInfo* outInfo) {
-    if (host->apiVersion != MODLOADER_PLUGIN_API_VERSION) return false;
+extern "C" __declspec(dllexport) bool ModLoader_InitPlugin(ModLoaderGetProcFn getProc, ModLoaderPluginCtx* ctx) {
+    ModLoader_BindAPI(getProc, &g_hostApi);
+    if (!ModLoader_AllBound(host->SetPluginInfo, host->SetDrawMenuCallback, host->SetCommandCallback,
+                            host->TextWrapped, host->Checkbox, host->SliderInt, host->Separator,
+                            host->GetConfigBool, host->GetConfigInt, host->SetConfigBool, host->SetConfigInt,
+                            host->Log)) return false;
 
     s_cacheCreateFileA = host->GetConfigBool(ctx, "CacheCreateFileA", kCommentCacheA, true);
     s_cacheCreateFileW = host->GetConfigBool(ctx, "CacheCreateFileW", kCommentCacheW, true);
@@ -373,11 +383,9 @@ extern "C" __declspec(dllexport) bool ModLoader_InitPlugin(const ModLoaderHostAP
     ApplyCpuPriorityNow();
     ApplyToExistingThreads();
 
-    outInfo->name = "Performance Tweaks";
-    outInfo->version = "2.0.0";
-    outInfo->author = nullptr;
-    outInfo->DrawMenu = &DrawMenu;
-    outInfo->OnCommand = &OnCommand;
+    host->SetPluginInfo(ctx, "Performance Tweaks", "2.0.0", nullptr);
+    host->SetDrawMenuCallback(ctx, &DrawMenu);
+    host->SetCommandCallback(ctx, &OnCommand);
 
     return true;
 }

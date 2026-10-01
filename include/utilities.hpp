@@ -15,9 +15,13 @@ public:
         static ModuleInfo GetModuleInfo(HMODULE hModule);
     };
 
-    class PatternScanner {
+    class Memory {
     public:
         static uintptr_t FindPattern(const char* pattern);
+        static bool WriteBytes(uintptr_t address, const void* data, size_t size);
+        static std::unique_ptr<MemoryPatch> CreatePatch(uintptr_t address, const uint8_t* bytes, size_t size);
+        static std::unique_ptr<MemoryPatch> CreatePatch(const char* pattern, size_t offset, const uint8_t* bytes, size_t size);
+        static bool SetPatchEnabled(MemoryPatch& patch, bool enabled);
     private:
         static std::vector<PatternByte> CompilePattern(const char* pattern);
         static uintptr_t FindPatternSIMD(std::span<const std::byte> image, const std::vector<PatternByte>& pattern);

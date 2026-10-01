@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "plugins.hpp"
 #include "gui.hpp"
+#include "utilities.hpp"
 
 #include <algorithm>
 #include <cwctype>
@@ -131,11 +132,7 @@ void Plugins::TryInitPluginAPI(LoadedPlugin& plugin) {
     auto initFn = reinterpret_cast<ModLoaderInitPluginFn>(GetProcAddress(plugin.module, "ModLoader_InitPlugin"));
     if (!initFn) return;
 
-    ModLoaderPluginInfo info{};
-    const ModLoaderHostAPI* host = GUI::GetPluginHostAPI();
-
-    if (initFn(host, plugin.ctx.get(), &info) && info.name) {
-        plugin.info = info;
+    if (initFn(&GUI::GetProc, plugin.ctx.get()) && !plugin.ctx->name.empty()) {
         plugin.apiInitialised = true;
     }
 }
@@ -143,6 +140,10 @@ void Plugins::TryInitPluginAPI(LoadedPlugin& plugin) {
 bool Plugins::UnloadPlugins() {
     if (!Settings::EnablePlugins) return false;
     for (auto& plugin : loadedPlugins) {
+        if (plugin.ctx) {
+            for (auto& patch : plugin.ctx->patches) Utilities::Memory::SetPatchEnabled(*patch, false);
+            plugin.ctx->patches.clear();
+        }
         if (plugin.module) FreeLibrary(plugin.module);
     }
     loadedPlugins.clear();
@@ -157,8 +158,8 @@ bool Plugins::SendCommand(const std::string& targetPlugin, const std::string& co
     for (auto& plugin : loadedPlugins) {
         if (!plugin.module || plugin.ctx->pluginId != targetPlugin) continue;
 
-        if (plugin.apiInitialised && plugin.info.OnCommand) {
-            plugin.info.OnCommand(GUI::GetPluginHostAPI(), plugin.ctx.get(), command.c_str());
+        if (plugin.apiInitialised && plugin.ctx->onCommand) {
+            plugin.ctx->onCommand(plugin.ctx.get(), command.c_str());
             return true;
         }
         return false;

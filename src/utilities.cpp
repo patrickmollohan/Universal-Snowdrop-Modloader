@@ -43,16 +43,20 @@ ModuleInfo Utilities::Module::GetModuleInfo(HMODULE hModule) {
     return info;
 }
 
-std::vector<PatternByte> Utilities::PatternScanner::CompilePattern(const char* pattern) {
+std::vector<PatternByte> Utilities::Memory::CompilePattern(const char* pattern) {
     std::vector<PatternByte> out;
 
     while (*pattern) {
         if (*pattern == ' ') { pattern++; continue; }
 
+        if (!pattern[1]) return {};
+
         if (pattern[0] == '?' && pattern[1] == '?') {
             out.push_back({ 0, true });
+        } else if (std::isxdigit(static_cast<unsigned char>(pattern[0])) && std::isxdigit(static_cast<unsigned char>(pattern[1]))) {
+            out.push_back({ (uint8_t)strtoul(std::string(pattern, 2).c_str(), nullptr, 16), false });
         } else {
-            out.push_back({ (uint8_t)strtoul(pattern, nullptr, 16), false });
+            return {};
         }
 
         pattern += 2;
@@ -60,13 +64,13 @@ std::vector<PatternByte> Utilities::PatternScanner::CompilePattern(const char* p
     return out;
 }
 
-uintptr_t Utilities::PatternScanner::FindPattern(const char* pat) {
+uintptr_t Utilities::Memory::FindPattern(const char* pat) {
     auto compiled = CompilePattern(pat);
 
     return FindPatternSIMD(g_ExeInfo.image, compiled);
 }
 
-uintptr_t Utilities::PatternScanner::FindPatternSIMD(std::span<const std::byte> img, const std::vector<PatternByte>& pattern) {
+uintptr_t Utilities::Memory::FindPatternSIMD(std::span<const std::byte> img, const std::vector<PatternByte>& pattern) {
     const size_t len = pattern.size();
     if (len == 0 || img.size() < len) return 0;
 
@@ -108,6 +112,68 @@ uintptr_t Utilities::PatternScanner::FindPatternSIMD(std::span<const std::byte> 
     }
 
     return 0;
+}
+
+namespace {
+    bool IsReadable(uintptr_t address, size_t size) {
+        const uintptr_t end = address + size;
+        if (end < address) return false;
+
+        while (address < end) {
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (!VirtualQuery(reinterpret_cast<LPCVOID>(address), &mbi, sizeof(mbi))) return false;
+            if (mbi.State != MEM_COMMIT || (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) return false;
+            address = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+        }
+        return true;
+    }
+}
+
+bool Utilities::Memory::WriteBytes(uintptr_t address, const void* data, size_t size) {
+    if (!address || !data || !size) return false;
+
+    void* target = reinterpret_cast<void*>(address);
+
+    DWORD oldProtect = 0;
+    if (!VirtualProtect(target, size, PAGE_EXECUTE_READWRITE, &oldProtect)) return false;
+
+    memcpy(target, data, size);
+
+    DWORD ignored = 0;
+    VirtualProtect(target, size, oldProtect, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), target, size);
+    return true;
+}
+
+std::unique_ptr<MemoryPatch> Utilities::Memory::CreatePatch(uintptr_t address, const uint8_t* bytes, size_t size) {
+    if (!address || !bytes || !size || !IsReadable(address, size)) return nullptr;
+
+    auto patch = std::make_unique<MemoryPatch>();
+    patch->address = address;
+    patch->patched.assign(bytes, bytes + size);
+
+    const auto* current = reinterpret_cast<const uint8_t*>(address);
+    patch->original.assign(current, current + size);
+    return patch;
+}
+
+std::unique_ptr<MemoryPatch> Utilities::Memory::CreatePatch(const char* pattern, size_t offset, const uint8_t* bytes, size_t size) {
+    if (!pattern) return nullptr;
+
+    const uintptr_t match = FindPattern(pattern);
+    if (!match) return nullptr;
+
+    return CreatePatch(match + offset, bytes, size);
+}
+
+bool Utilities::Memory::SetPatchEnabled(MemoryPatch& patch, bool enabled) {
+    if (patch.enabled == enabled) return true;
+
+    const std::vector<uint8_t>& src = enabled ? patch.patched : patch.original;
+    if (!WriteBytes(patch.address, src.data(), src.size())) return false;
+
+    patch.enabled = enabled;
+    return true;
 }
 
 bool Utilities::SettingsParser::GetBoolean(const std::string& path, const std::string& section, const std::string& key, bool defaultValue, const char* comment) {

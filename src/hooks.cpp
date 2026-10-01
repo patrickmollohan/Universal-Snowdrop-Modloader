@@ -6,7 +6,7 @@ Hooks::stream_t Hooks::origStreamingPtr = nullptr;
 volatile uint8_t* Hooks::noMeshStreamingFlag = nullptr;
 
 volatile uint8_t* Hooks::FindNoMeshStreamingFlag() {
-    uintptr_t anchor = Utilities::PatternScanner::FindPattern("C6 05 ?? ?? ?? ?? ?? 40 38 35");
+    uintptr_t anchor = Utilities::Memory::FindPattern("C6 05 ?? ?? ?? ?? ?? 40 38 35");
     if (!anchor) return nullptr;
 
     int32_t ripOffset;
@@ -23,11 +23,11 @@ bool Hooks::LoadHooks() {
     uintptr_t streamingPtr;
 
     if (Utilities::String::ContainsIgnoreCase(g_ExeInfo.filename, "afop") || Utilities::String::ContainsIgnoreCase(g_ExeInfo.filename, "avatar")) {
-        loadFilePtr = Utilities::PatternScanner::FindPattern("48 89 5C 24 ?? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ?? ?? ?? ?? 41 8B F8");
-        streamingPtr = Utilities::PatternScanner::FindPattern("44 88 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 57");
+        loadFilePtr = Utilities::Memory::FindPattern("48 89 5C 24 ?? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ?? ?? ?? ?? 41 8B F8");
+        streamingPtr = Utilities::Memory::FindPattern("44 88 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 57");
     } else if (Utilities::String::ContainsIgnoreCase(g_ExeInfo.filename, "outlaws")) {
-        loadFilePtr = Utilities::PatternScanner::FindPattern("4C 8B DC 53 57 41 54 48 81 EC ?? ?? ?? ?? 41 8B D8");
-        streamingPtr = Utilities::PatternScanner::FindPattern("48 8B C4 44 88 40 18 48 89 50 10 55 53 57");
+        loadFilePtr = Utilities::Memory::FindPattern("4C 8B DC 53 57 41 54 48 81 EC ?? ?? ?? ?? 41 8B D8");
+        streamingPtr = Utilities::Memory::FindPattern("48 8B C4 44 88 40 18 48 89 50 10 55 53 57");
     } else {
         MessageBoxA(NULL, "Unsupported executable for mod loading. Mod loading disabled.", "Dank farrik!", MB_OK | MB_ICONERROR);
         return false;

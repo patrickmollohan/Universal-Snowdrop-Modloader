@@ -4,52 +4,74 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define MODLOADER_PLUGIN_API_VERSION 1
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct ModLoaderPluginCtx ModLoaderPluginCtx;
+typedef struct ModLoaderPatch ModLoaderPatch;
+
+typedef void (*ModLoaderDrawMenuFn)(ModLoaderPluginCtx* ctx);
+typedef void (*ModLoaderCommandFn)(ModLoaderPluginCtx* ctx, const char* command);
+
+typedef void* (*ModLoaderGetProcFn)(const char* name);
+
+typedef bool (*ModLoaderInitPluginFn)(ModLoaderGetProcFn getProc, ModLoaderPluginCtx* ctx);
+
+#define MODLOADER_API(X) \
+    /* Registration */ \
+    X(void, SetPluginInfo,       (ModLoaderPluginCtx* ctx, const char* name, const char* version, const char* author)) \
+    X(void, SetDrawMenuCallback, (ModLoaderPluginCtx* ctx, ModLoaderDrawMenuFn fn)) \
+    X(void, SetCommandCallback,  (ModLoaderPluginCtx* ctx, ModLoaderCommandFn fn)) \
+    /* Widgets */ \
+    X(void, Text,        (ModLoaderPluginCtx* ctx, const char* fmt, ...)) \
+    X(void, TextWrapped, (ModLoaderPluginCtx* ctx, const char* fmt, ...)) \
+    X(bool, Checkbox,    (ModLoaderPluginCtx* ctx, const char* label, bool* value)) \
+    X(bool, SliderInt,   (ModLoaderPluginCtx* ctx, const char* label, int* value, int min, int max)) \
+    X(bool, SliderFloat, (ModLoaderPluginCtx* ctx, const char* label, float* value, float min, float max)) \
+    X(bool, InputText,   (ModLoaderPluginCtx* ctx, const char* label, char* buf, size_t bufSize)) \
+    X(bool, Button,      (ModLoaderPluginCtx* ctx, const char* label)) \
+    X(void, Separator,   (ModLoaderPluginCtx* ctx)) \
+    /* Config */ \
+    X(bool, GetConfigBool, (ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue)) \
+    X(int,  GetConfigInt,  (ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue)) \
+    X(void, SetConfigBool, (ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value)) \
+    X(void, SetConfigInt,  (ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value)) \
+    /* Commands */ \
+    X(bool, SendCommand, (ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command)) \
+    /* Misc */ \
+    X(void, Log, (ModLoaderPluginCtx* ctx, const char* fmt, ...)) \
+    /* Memory */ \
+    X(uintptr_t, FindPattern, (ModLoaderPluginCtx* ctx, const char* pattern)) \
+    /* Patches */ \
+    X(ModLoaderPatch*, CreatePatch,     (ModLoaderPluginCtx* ctx, const char* pattern, size_t offset, const uint8_t* bytes, size_t size)) \
+    X(ModLoaderPatch*, CreatePatchAt,   (ModLoaderPluginCtx* ctx, uintptr_t address, const uint8_t* bytes, size_t size)) \
+    X(bool,            SetPatchEnabled, (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch, bool enabled)) \
+    X(bool,            IsPatchEnabled,  (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch)) \
+    X(uintptr_t,       GetPatchAddress, (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch)) \
+    X(void,            DestroyPatch,    (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch))
 
 typedef struct ModLoaderHostAPI {
-    uint32_t apiVersion;
-
-    // --- Widgets -------------------------------------------------------
-    void (*Text)(ModLoaderPluginCtx* ctx, const char* fmt, ...);
-    bool (*Checkbox)(ModLoaderPluginCtx* ctx, const char* label, bool* value);
-    bool (*SliderInt)(ModLoaderPluginCtx* ctx, const char* label, int* value, int min, int max);
-    bool (*SliderFloat)(ModLoaderPluginCtx* ctx, const char* label, float* value, float min, float max);
-    bool (*InputText)(ModLoaderPluginCtx* ctx, const char* label, char* buf, size_t bufSize);
-    bool (*Button)(ModLoaderPluginCtx* ctx, const char* label);
-    void (*Separator)(ModLoaderPluginCtx* ctx);
-
-    // --- Config ----------------------------------------------------------
-    bool (*GetConfigBool)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue);
-    int  (*GetConfigInt)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue);
-    void (*SetConfigBool)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value);
-    void (*SetConfigInt)(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value);
-
-    // --- Commands ----------------------------------------------------------
-    bool (*SendCommand)(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);
-
-    // --- Misc ------------------------------------------------------------
-    void (*Log)(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+#define MODLOADER_X_MEMBER(ret, name, params) ret (*name) params;
+    MODLOADER_API(MODLOADER_X_MEMBER)
+#undef MODLOADER_X_MEMBER
 } ModLoaderHostAPI;
 
-typedef void (*ModLoaderDrawMenuFn)(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx);
-typedef void (*ModLoaderCommandFn)(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx, const char* command);
-
-typedef struct ModLoaderPluginInfo {
-    const char* name;
-    const char* version;
-    const char* author;
-    ModLoaderDrawMenuFn DrawMenu;
-    ModLoaderCommandFn OnCommand;
-} ModLoaderPluginInfo;
-
-typedef bool (*ModLoaderInitPluginFn)(const ModLoaderHostAPI* host, ModLoaderPluginCtx* ctx, ModLoaderPluginInfo* outInfo);
+static inline int ModLoader_BindAPI(ModLoaderGetProcFn getProc, ModLoaderHostAPI* out) {
+    int missing = 0;
+#define MODLOADER_X_BIND(ret, name, params) \
+    out->name = (ret (*) params)getProc(#name); \
+    if (!out->name) ++missing;
+    MODLOADER_API(MODLOADER_X_BIND)
+#undef MODLOADER_X_BIND
+    return missing;
+}
 
 #ifdef __cplusplus
+}
+
+template <typename... Fn>
+static inline bool ModLoader_AllBound(Fn... fns) {
+    return ((fns != nullptr) && ...);
 }
 #endif
