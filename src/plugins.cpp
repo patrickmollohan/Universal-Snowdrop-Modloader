@@ -141,6 +141,11 @@ bool Plugins::UnloadPlugins() {
     if (!Settings::EnablePlugins) return false;
     for (auto& plugin : loadedPlugins) {
         if (plugin.ctx) {
+            for (auto& hook : plugin.ctx->hooks) {
+                MH_DisableHook(hook->target);
+                MH_RemoveHook(hook->target);
+            }
+            plugin.ctx->hooks.clear();
             for (auto& patch : plugin.ctx->patches) Utilities::Memory::SetPatchEnabled(*patch, false);
             plugin.ctx->patches.clear();
         }

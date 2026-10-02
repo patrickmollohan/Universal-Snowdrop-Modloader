@@ -6,10 +6,16 @@
 
 inline constexpr const char* kPluginConfigSection = "Settings";
 
+struct ModLoaderHook {
+    LPVOID target = nullptr;
+    bool enabled = false;
+};
+
 struct ModLoaderPluginCtx {
     std::string pluginId;
     std::string configPath;
     std::vector<std::unique_ptr<MemoryPatch>> patches;
+    std::vector<std::unique_ptr<ModLoaderHook>> hooks;
 
     std::string name;
     std::string version;

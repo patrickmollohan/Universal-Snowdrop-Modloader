@@ -130,3 +130,36 @@ end
 
 PluginProject("PerformanceTweaks", true)
 PluginProject("OutlawsFrameGen")
+PluginProject("OutlawsModelChanger")
+
+project "MusicPlayer"
+    kind "SharedLib"
+    language "C++"
+    targetextension ".dll"
+    targetname "MusicPlayer"
+    targetdir "bin/%{cfg.buildcfg}/plugins"
+
+    includedirs {
+        "include",
+        "plugin_templates/MusicPlayer",
+        "plugin_templates/MusicPlayer/lib"
+    }
+
+    files {
+        "plugin_templates/MusicPlayer/**.cpp",
+        "plugin_templates/MusicPlayer/lib/miniaudio/miniaudio.c",
+        "plugin_templates/MusicPlayer/lib/miniaudio/miniaudio.h"
+    }
+
+    filter { "files:plugin_templates/MusicPlayer/lib/miniaudio.c" }
+        language "C"
+        enablepch "Off"
+    filter {}
+
+    characterset "UNICODE"
+    defines { "NDEBUG" }
+    optimize "On"
+    staticruntime "On"
+    linktimeoptimization "On"
+    buildoptions { "/Ox", "/fp:fast" }
+    links { "winmm", "ole32", "avrt" }

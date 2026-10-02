@@ -20,10 +20,41 @@ class GUI {
 public:
     static bool LoadGUI();
     static void UnloadGUI();
-
     static bool Visible;
-
     static void* GetProc(const char* name);
+	
+    static void Host_SetPluginInfo(ModLoaderPluginCtx* ctx, const char* name, const char* version, const char* author);
+    static void Host_SetDrawMenuCallback(ModLoaderPluginCtx* ctx, ModLoaderDrawMenuFn fn);
+    static void Host_SetCommandCallback(ModLoaderPluginCtx* ctx, ModLoaderCommandFn fn);
+    static void Host_Text(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static void Host_TextWrapped(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static bool Host_Checkbox(ModLoaderPluginCtx* ctx, const char* label, bool* value);
+    static bool Host_SliderInt(ModLoaderPluginCtx* ctx, const char* label, int* value, int min, int max);
+    static bool Host_SliderFloat(ModLoaderPluginCtx* ctx, const char* label, float* value, float min, float max);
+    static bool Host_InputText(ModLoaderPluginCtx* ctx, const char* label, char* buf, size_t bufSize);
+    static bool Host_Button(ModLoaderPluginCtx* ctx, const char* label);
+    static void Host_Separator(ModLoaderPluginCtx* ctx);
+    static bool Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue);
+    static int  Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue);
+    static void Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value);
+    static void Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value);
+    static bool Host_SendCommand(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);
+    static void Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static uintptr_t Host_FindPattern(ModLoaderPluginCtx* ctx, const char* pattern);
+    static ModLoaderPatch* Host_CreatePatch(ModLoaderPluginCtx* ctx, const char* pattern, size_t offset, const uint8_t* bytes, size_t size);
+    static ModLoaderPatch* Host_CreatePatchAt(ModLoaderPluginCtx* ctx, uintptr_t address, const uint8_t* bytes, size_t size);
+    static bool Host_SetPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch, bool enabled);
+    static bool Host_IsPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
+    static uintptr_t Host_GetPatchAddress(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
+    static void Host_DestroyPatch(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
+    static void Host_TextDisabled(ModLoaderPluginCtx* ctx, const char* fmt, ...);
+    static void Host_SameLine(ModLoaderPluginCtx* ctx);
+    static bool Host_ListBox(ModLoaderPluginCtx* ctx, const char* label, int* currentItem, ModLoaderListItemFn getItem, void* userData, int itemCount, int heightInItems);
+    static uintptr_t Host_ResolveRelative(ModLoaderPluginCtx* ctx, uintptr_t instructionAddress, size_t opcodeLength, size_t instructionLength);
+    static ModLoaderHook* Host_CreateHook(ModLoaderPluginCtx* ctx, uintptr_t target, void* detour, void** original);
+    static bool Host_SetHookEnabled(ModLoaderPluginCtx* ctx, ModLoaderHook* hook, bool enabled);
+    static bool Host_IsHookEnabled(ModLoaderPluginCtx* ctx, ModLoaderHook* hook);
+    static void Host_DestroyHook(ModLoaderPluginCtx* ctx, ModLoaderHook* hook);
 
 private:
     static constexpr UINT BackBufferCount = DXGI_MAX_SWAP_CHAIN_BUFFERS;
@@ -72,33 +103,6 @@ private:
     static HWND gameWindow;
     static WNDPROC originalWndProc;
 
-public:
-    static void Host_SetPluginInfo(ModLoaderPluginCtx* ctx, const char* name, const char* version, const char* author);
-    static void Host_SetDrawMenuCallback(ModLoaderPluginCtx* ctx, ModLoaderDrawMenuFn fn);
-    static void Host_SetCommandCallback(ModLoaderPluginCtx* ctx, ModLoaderCommandFn fn);
-    static void Host_Text(ModLoaderPluginCtx* ctx, const char* fmt, ...);
-    static void Host_TextWrapped(ModLoaderPluginCtx* ctx, const char* fmt, ...);
-    static bool Host_Checkbox(ModLoaderPluginCtx* ctx, const char* label, bool* value);
-    static bool Host_SliderInt(ModLoaderPluginCtx* ctx, const char* label, int* value, int min, int max);
-    static bool Host_SliderFloat(ModLoaderPluginCtx* ctx, const char* label, float* value, float min, float max);
-    static bool Host_InputText(ModLoaderPluginCtx* ctx, const char* label, char* buf, size_t bufSize);
-    static bool Host_Button(ModLoaderPluginCtx* ctx, const char* label);
-    static void Host_Separator(ModLoaderPluginCtx* ctx);
-    static bool Host_GetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool defaultValue);
-    static int  Host_GetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int defaultValue);
-    static void Host_SetConfigBool(ModLoaderPluginCtx* ctx, const char* key, const char* comment, bool value);
-    static void Host_SetConfigInt(ModLoaderPluginCtx* ctx, const char* key, const char* comment, int value);
-    static bool Host_SendCommand(ModLoaderPluginCtx* ctx, const char* targetPlugin, const char* command);
-    static void Host_Log(ModLoaderPluginCtx* ctx, const char* fmt, ...);
-    static uintptr_t Host_FindPattern(ModLoaderPluginCtx* ctx, const char* pattern);
-    static ModLoaderPatch* Host_CreatePatch(ModLoaderPluginCtx* ctx, const char* pattern, size_t offset, const uint8_t* bytes, size_t size);
-    static ModLoaderPatch* Host_CreatePatchAt(ModLoaderPluginCtx* ctx, uintptr_t address, const uint8_t* bytes, size_t size);
-    static bool Host_SetPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch, bool enabled);
-    static bool Host_IsPatchEnabled(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
-    static uintptr_t Host_GetPatchAddress(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
-    static void Host_DestroyPatch(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch);
-
-private:
     static void InitialiseImGui(IDXGISwapChain3* swapChain);
     static void ShutdownGraphics();
     static void RenderFrame(IDXGISwapChain3* swapChain);

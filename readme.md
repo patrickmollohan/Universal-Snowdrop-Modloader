@@ -45,3 +45,5 @@ To add another plugin to the solution, put its sources in "plugin_templates/<Nam
 TsudaKageyu - [MinHook](https://github.com/TsudaKageyu/minhook)
 
 ocornut - [Dear ImGui](https://github.com/ocornut/imgui)
+
+mackron - [miniaudio](https://github.com/mackron/miniaudio)

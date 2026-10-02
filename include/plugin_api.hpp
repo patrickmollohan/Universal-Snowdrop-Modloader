@@ -10,9 +10,12 @@ extern "C" {
 
 typedef struct ModLoaderPluginCtx ModLoaderPluginCtx;
 typedef struct ModLoaderPatch ModLoaderPatch;
+typedef struct ModLoaderHook ModLoaderHook;
 
 typedef void (*ModLoaderDrawMenuFn)(ModLoaderPluginCtx* ctx);
 typedef void (*ModLoaderCommandFn)(ModLoaderPluginCtx* ctx, const char* command);
+
+typedef const char* (*ModLoaderListItemFn)(void* userData, int index);
 
 typedef void* (*ModLoaderGetProcFn)(const char* name);
 
@@ -49,7 +52,18 @@ typedef bool (*ModLoaderInitPluginFn)(ModLoaderGetProcFn getProc, ModLoaderPlugi
     X(bool,            SetPatchEnabled, (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch, bool enabled)) \
     X(bool,            IsPatchEnabled,  (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch)) \
     X(uintptr_t,       GetPatchAddress, (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch)) \
-    X(void,            DestroyPatch,    (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch))
+    X(void,            DestroyPatch,    (ModLoaderPluginCtx* ctx, ModLoaderPatch* patch)) \
+    /* Extended widgets */ \
+    X(void, TextDisabled, (ModLoaderPluginCtx* ctx, const char* fmt, ...)) \
+    X(void, SameLine,     (ModLoaderPluginCtx* ctx)) \
+    X(bool, ListBox,      (ModLoaderPluginCtx* ctx, const char* label, int* currentItem, ModLoaderListItemFn getItem, void* userData, int itemCount, int heightInItems)) \
+    /* Memory helpers */ \
+    X(uintptr_t, ResolveRelative, (ModLoaderPluginCtx* ctx, uintptr_t instructionAddress, size_t opcodeLength, size_t instructionLength)) \
+    /* Hooks */ \
+    X(ModLoaderHook*, CreateHook,     (ModLoaderPluginCtx* ctx, uintptr_t target, void* detour, void** original)) \
+    X(bool,           SetHookEnabled, (ModLoaderPluginCtx* ctx, ModLoaderHook* hook, bool enabled)) \
+    X(bool,           IsHookEnabled,  (ModLoaderPluginCtx* ctx, ModLoaderHook* hook)) \
+    X(void,           DestroyHook,    (ModLoaderPluginCtx* ctx, ModLoaderHook* hook))
 
 typedef struct ModLoaderHostAPI {
 #define MODLOADER_X_MEMBER(ret, name, params) ret (*name) params;

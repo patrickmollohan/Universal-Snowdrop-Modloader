@@ -650,6 +650,117 @@ void GUI::Host_DestroyPatch(ModLoaderPluginCtx* ctx, ModLoaderPatch* patch) {
     std::erase_if(ctx->patches, [p](const auto& owned) { return owned.get() == p; });
 }
 
+void GUI::Host_TextDisabled(ModLoaderPluginCtx*, const char* fmt, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("%s", buffer);
+    ImGui::PopTextWrapPos();
+}
+
+void GUI::Host_SameLine(ModLoaderPluginCtx*) {
+    ImGui::SameLine();
+}
+
+bool GUI::Host_ListBox(ModLoaderPluginCtx*, const char* label, int* currentItem, ModLoaderListItemFn getItem, void* userData, int itemCount, int heightInItems) {
+    if (!label || !currentItem || !getItem) return false;
+
+    DrawWrappedLabel(label);
+
+    if (heightInItems < 0) heightInItems = itemCount < 7 ? itemCount : 7;
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float height = ImGui::GetTextLineHeightWithSpacing() * (static_cast<float>(heightInItems) + 0.25f) + style.FramePadding.y * 2.0f;
+
+    bool changed = false;
+    if (ImGui::BeginListBox((std::string("##") + label).c_str(), ImVec2(-FLT_MIN, height))) {
+        ImGuiListClipper clipper;
+        clipper.Begin(itemCount);
+        while (clipper.Step()) {
+            for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                const char* text = getItem(userData, i);
+                ImGui::PushID(i);
+                if (ImGui::Selectable(text ? text : "", *currentItem == i)) {
+                    *currentItem = i;
+                    changed = true;
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndListBox();
+    }
+    return changed;
+}
+
+static bool SafeReadInt32(uintptr_t address, int32_t* out) {
+    __try {
+        *out = *reinterpret_cast<const volatile int32_t*>(address);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+uintptr_t GUI::Host_ResolveRelative(ModLoaderPluginCtx*, uintptr_t instructionAddress, size_t opcodeLength, size_t instructionLength) {
+    if (!instructionAddress) return 0;
+
+    int32_t rel = 0;
+    if (!SafeReadInt32(instructionAddress + opcodeLength, &rel)) return 0;
+    return instructionAddress + instructionLength + static_cast<intptr_t>(rel);
+}
+
+static ModLoaderHook* FindOwnedHook(ModLoaderPluginCtx* ctx, ModLoaderHook* handle) {
+    if (!ctx || !handle) return nullptr;
+    for (auto& hook : ctx->hooks) {
+        if (hook.get() == handle) return hook.get();
+    }
+    return nullptr;
+}
+
+ModLoaderHook* GUI::Host_CreateHook(ModLoaderPluginCtx* ctx, uintptr_t target, void* detour, void** original) {
+    if (!ctx || !target || !detour) return nullptr;
+
+    for (const auto& hook : ctx->hooks) {
+        if (hook->target == reinterpret_cast<LPVOID>(target)) return nullptr;
+    }
+
+    if (MH_CreateHook(reinterpret_cast<LPVOID>(target), detour, original) != MH_OK) return nullptr;
+
+    auto hook = std::make_unique<ModLoaderHook>();
+    hook->target = reinterpret_cast<LPVOID>(target);
+    ModLoaderHook* handle = hook.get();
+    ctx->hooks.push_back(std::move(hook));
+    return handle;
+}
+
+bool GUI::Host_SetHookEnabled(ModLoaderPluginCtx* ctx, ModLoaderHook* hook, bool enabled) {
+    ModLoaderHook* h = FindOwnedHook(ctx, hook);
+    if (!h) return false;
+    if (h->enabled == enabled) return true;
+
+    const MH_STATUS status = enabled ? MH_EnableHook(h->target) : MH_DisableHook(h->target);
+    if (status != MH_OK && status != MH_ERROR_ENABLED && status != MH_ERROR_DISABLED) return false;
+
+    h->enabled = enabled;
+    return true;
+}
+
+bool GUI::Host_IsHookEnabled(ModLoaderPluginCtx* ctx, ModLoaderHook* hook) {
+    const ModLoaderHook* h = FindOwnedHook(ctx, hook);
+    return h && h->enabled;
+}
+
+void GUI::Host_DestroyHook(ModLoaderPluginCtx* ctx, ModLoaderHook* hook) {
+    ModLoaderHook* h = FindOwnedHook(ctx, hook);
+    if (!h) return;
+
+    MH_DisableHook(h->target);
+    MH_RemoveHook(h->target);
+    std::erase_if(ctx->hooks, [h](const auto& owned) { return owned.get() == h; });
+}
+
 #define MODLOADER_X_CHECK(ret, name, params) \
     static_assert(std::is_same_v<decltype(&GUI::Host_##name), ret (*) params>, \
                   "GUI::Host_" #name " does not match its declaration in MODLOADER_API");
