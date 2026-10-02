@@ -103,6 +103,75 @@ private:
     static HWND gameWindow;
     static WNDPROC originalWndProc;
 
+    enum class CursorMode { Undecided, Own, External };
+    static std::atomic<CursorMode> cursorMode;
+
+    static void UpdateCursor(bool menuOpen);
+    static void DecideCursorMode();
+    static void InstallWindowHook(HWND window);
+
+    using SetCursorPosFn = BOOL(WINAPI*)(int, int);
+    using GetCursorPosFn = BOOL(WINAPI*)(LPPOINT);
+    using ClipCursorFn = BOOL(WINAPI*)(const RECT*);
+    using GetRawInputDataFn = UINT(WINAPI*)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
+    using ShowCursorFn = int(WINAPI*)(BOOL);
+    using SetCursorFn = HCURSOR(WINAPI*)(HCURSOR);
+
+    static SetCursorPosFn originalSetCursorPos;
+    static GetCursorPosFn originalGetCursorPos;
+    static ClipCursorFn originalClipCursor;
+    static GetRawInputDataFn originalGetRawInputData;
+    static ShowCursorFn originalShowCursor;
+    static SetCursorFn originalSetCursor;
+
+    static bool cursorHooksInstalled;
+    static std::atomic<bool> cursorCaptured;
+    static std::mutex cursorMutex;
+    static POINT gameCursorPos;
+    static bool hasGameCursorPos;
+    static bool gameMovedCursorWhileCaptured;
+    static std::atomic<ULONGLONG> lastGameSetCursorPosTick;
+    static POINT savedMenuClientPos;
+    static bool hasSavedMenuPos;
+    static RECT gameClipRect;
+    static bool hasGameClipRect;
+    static HCURSOR gameCursor;
+    static bool hasGameCursor;
+    static int osCursorAdded;
+    static int showCountAtCapture;
+    static int gameShowCount;
+    static RECT confineRect;
+    static bool hasConfineRect;
+
+    static bool InstallCursorHooks();
+    static bool IsGameCaller(const void* returnAddress);
+    static void SetCursorCaptured(bool captured);
+    static void UpdateCursorConfinement();
+    static void PollMouseButtons();
+    static void ServiceOsCursor();
+
+    static BOOL WINAPI HookedSetCursorPos(int x, int y);
+    static BOOL WINAPI HookedGetCursorPos(LPPOINT point);
+    static BOOL WINAPI HookedClipCursor(const RECT* rect);
+    static UINT WINAPI HookedGetRawInputData(HRAWINPUT rawInput, UINT command, LPVOID data, PUINT size, UINT headerSize);
+    static int WINAPI HookedShowCursor(BOOL show);
+    static HCURSOR WINAPI HookedSetCursor(HCURSOR cursor);
+
+    static bool cursorOverrideActive;
+    static bool savedCursorVisible;
+    static HCURSOR savedCursorHandle;
+    static bool savedClipValid;
+    static bool savedClipWasActive;
+    static RECT savedClipRect;
+    static HWND savedCaptureWindow;
+
+    static void ReleaseCursorForMenu();
+    static void RestoreCursorToGame();
+    static void ForceCursorVisible();
+    static void SetCursorVisible(bool visible);
+    static bool IsVirtualScreenRect(const RECT& rect);
+    static bool IsExternalWndProc(WNDPROC proc);
+
     static void InitialiseImGui(IDXGISwapChain3* swapChain);
     static void ShutdownGraphics();
     static void RenderFrame(IDXGISwapChain3* swapChain);

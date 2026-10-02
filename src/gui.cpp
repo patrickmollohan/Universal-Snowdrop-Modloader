@@ -1,7 +1,13 @@
 #include "pch.hpp"
 #include "gui.hpp"
 
+#include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <cwchar>
+#include <cwctype>
+#include <intrin.h>
+#include <string>
 #include <type_traits>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -39,6 +45,41 @@ bool GUI::imguiDx12Ready = false;
 IDXGISwapChain3* GUI::activeSwapChain = nullptr;
 HWND GUI::gameWindow = nullptr;
 WNDPROC GUI::originalWndProc = nullptr;
+
+std::atomic<GUI::CursorMode> GUI::cursorMode{ GUI::CursorMode::Undecided };
+
+GUI::SetCursorPosFn GUI::originalSetCursorPos = nullptr;
+GUI::GetCursorPosFn GUI::originalGetCursorPos = nullptr;
+GUI::ClipCursorFn GUI::originalClipCursor = nullptr;
+GUI::GetRawInputDataFn GUI::originalGetRawInputData = nullptr;
+GUI::ShowCursorFn GUI::originalShowCursor = nullptr;
+GUI::SetCursorFn GUI::originalSetCursor = nullptr;
+bool GUI::cursorHooksInstalled = false;
+std::atomic<bool> GUI::cursorCaptured{ false };
+std::mutex GUI::cursorMutex;
+POINT GUI::gameCursorPos{};
+bool GUI::hasGameCursorPos = false;
+bool GUI::gameMovedCursorWhileCaptured = false;
+std::atomic<ULONGLONG> GUI::lastGameSetCursorPosTick{ 0 };
+POINT GUI::savedMenuClientPos{};
+bool GUI::hasSavedMenuPos = false;
+RECT GUI::gameClipRect{};
+bool GUI::hasGameClipRect = false;
+HCURSOR GUI::gameCursor = nullptr;
+bool GUI::hasGameCursor = false;
+int GUI::osCursorAdded = 0;
+int GUI::showCountAtCapture = 0;
+int GUI::gameShowCount = 0;
+RECT GUI::confineRect{};
+bool GUI::hasConfineRect = false;
+
+bool GUI::cursorOverrideActive = false;
+bool GUI::savedCursorVisible = false;
+HCURSOR GUI::savedCursorHandle = nullptr;
+bool GUI::savedClipValid = false;
+bool GUI::savedClipWasActive = false;
+RECT GUI::savedClipRect{};
+HWND GUI::savedCaptureWindow = nullptr;
 
 GUI::Present_t GUI::originalPresent = nullptr;
 GUI::Present1_t GUI::originalPresent1 = nullptr;
@@ -169,6 +210,7 @@ bool GUI::LoadGUI() {
 }
 
 void GUI::UnloadGUI() {
+    UpdateCursor(false);
     {
         std::lock_guard<std::recursive_mutex> lock(stateMutex);
         ShutdownGraphics();
@@ -271,6 +313,7 @@ bool GUI::WaitForFrame(UINT index) {
 }
 
 void GUI::ShutdownGraphics() {
+    UpdateCursor(false);
     initialised = false;
     activeSwapChain = nullptr;
 
@@ -394,9 +437,7 @@ void GUI::InitialiseImGui(IDXGISwapChain3* swapChain) {
         imguiDx12Ready = true;
     }
 
-    if (GetWindowLongPtrW(gameWindow, GWLP_WNDPROC) != reinterpret_cast<LONG_PTR>(&WndProcHook)) {
-        originalWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProcHook)));
-    }
+    InstallWindowHook(gameWindow);
 
     activeSwapChain = swapChain;
     initialised = true;
@@ -435,6 +476,8 @@ void GUI::RenderFrame(IDXGISwapChain3* swapChain) {
 
     {
         std::lock_guard<std::recursive_mutex> imguiLock(imguiMutex);
+
+        PollMouseButtons();
 
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
@@ -784,6 +827,11 @@ void GUI::DrawMenu() {
 
     ImGui::TextUnformatted(g_ExeInfo.filename.c_str());
     ImGui::TextDisabled("%s to toggle this menu", Settings::MenuToggleKeyName.c_str());
+    if (cursorMode.load() == CursorMode::External) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("Another overlay (e.g. OptiScaler) controls the mouse cursor. If the mouse does nothing in-game, open that overlay's menu too.");
+        ImGui::PopStyleColor();
+    }
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -874,11 +922,13 @@ void GUI::DrawMenu() {
 }
 
 LRESULT CALLBACK GUI::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    ServiceOsCursor();
+
     if (initialised.load() && Visible) {
         std::lock_guard<std::recursive_mutex> lock(imguiMutex);
 
         if (initialised.load() && imguiContextCreated) {
-            ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+            const LRESULT handled = ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
 
             ImGuiIO& io = ImGui::GetIO();
 
@@ -886,8 +936,36 @@ LRESULT CALLBACK GUI::WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
                 msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP);
             const bool isMouseMsg = (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST);
 
-            if ((io.WantCaptureKeyboard && isKeyboardMsg) || (io.WantCaptureMouse && isMouseMsg)) {
+            if (isKeyboardMsg && io.WantCaptureKeyboard) {
                 return TRUE;
+            }
+
+            const CursorMode mode = cursorMode.load();
+
+            if (mode == CursorMode::External) {
+                if (msg == WM_SETCURSOR || isMouseMsg || msg == WM_INPUT) {
+                    if (IsExternalWndProc(originalWndProc)) {
+                        const LRESULT externalResult = CallWindowProcW(originalWndProc, hWnd, msg, wParam, lParam);
+                        if (externalResult != 0) return externalResult;
+                    }
+                    return TRUE;
+                }
+            } else if (mode == CursorMode::Own) {
+                if (msg == WM_SETCURSOR) {
+                    if (handled) return TRUE;
+                } else if (isMouseMsg) {
+                    return TRUE;
+                } else if (msg == WM_INPUT) {
+                    RAWINPUTHEADER header{};
+                    UINT size = sizeof(header);
+                    if (GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_HEADER, &header, &size, sizeof(RAWINPUTHEADER)) != static_cast<UINT>(-1)) {
+                        const bool rawMouse = header.dwType == RIM_TYPEMOUSE;
+                        const bool rawKeyboard = header.dwType == RIM_TYPEKEYBOARD;
+                        if (rawMouse || (rawKeyboard && io.WantCaptureKeyboard)) {
+                            return DefWindowProcW(hWnd, msg, wParam, lParam);
+                        }
+                    }
+                }
             }
         }
     }
@@ -905,15 +983,581 @@ void GUI::PollToggleKey() {
     wasDown = down;
 }
 
+// ---------------------------------------------------------------------------
+// Cursor handling
+// ---------------------------------------------------------------------------
+namespace {
+    bool SafeRead(const void* source, void* destination, size_t size) {
+        __try {
+            memcpy(destination, source, size);
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+    }
+
+    HMODULE ModuleFromAddress(const void* address) {
+        HMODULE module = nullptr;
+        if (!address || !GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(address), &module)) {
+            return nullptr;
+        }
+        return module;
+    }
+
+    bool IsSystemModule(HMODULE module) {
+        static const wchar_t* const names[] = { L"user32.dll", L"win32u.dll", L"ntdll.dll", L"kernelbase.dll", L"kernel32.dll" };
+        for (const wchar_t* name : names) {
+            if (module == GetModuleHandleW(name)) return true;
+        }
+        return false;
+    }
+
+    const uint8_t* ResolveLeadingJump(const uint8_t* function) {
+        uint8_t b[16]{};
+        if (!SafeRead(function, b, sizeof(b))) return nullptr;
+
+        int32_t rel = 0;
+        const uint8_t* target = nullptr;
+
+        if (b[0] == 0xE9) {
+            memcpy(&rel, b + 1, sizeof(rel));
+            return function + 5 + rel;
+        }
+        if (b[0] == 0xEB) {
+            return function + 2 + static_cast<int8_t>(b[1]);
+        }
+        if (b[0] == 0xFF && b[1] == 0x25) {
+            memcpy(&rel, b + 2, sizeof(rel));
+            return SafeRead(function + 6 + rel, &target, sizeof(target)) ? target : nullptr;
+        }
+        if (b[0] == 0x48 && b[1] == 0xFF && b[2] == 0x25) {
+            memcpy(&rel, b + 3, sizeof(rel));
+            return SafeRead(function + 7 + rel, &target, sizeof(target)) ? target : nullptr;
+        }
+        if (b[0] == 0x48 && b[1] == 0xB8 && b[10] == 0xFF && b[11] == 0xE0) {
+            memcpy(&target, b + 2, sizeof(target));
+            return target;
+        }
+        if (b[0] == 0x49 && b[1] == 0xBA && b[10] == 0x41 && b[11] == 0xFF && b[12] == 0xE2) {
+            memcpy(&target, b + 2, sizeof(target));
+            return target;
+        }
+        return nullptr;
+    }
+
+    struct ExportHook {
+        bool hooked = false;
+        HMODULE owner = nullptr;
+    };
+
+    ExportHook InspectExport(HMODULE user32, const char* name) {
+        ExportHook result;
+
+        const auto* code = reinterpret_cast<const uint8_t*>(GetProcAddress(user32, name));
+        if (!code) return result;
+
+        for (int hop = 0; hop < 6; ++hop) {
+            const uint8_t* target = ResolveLeadingJump(code);
+            if (!target) {
+                result.hooked = hop > 0;
+                return result;
+            }
+
+            if (HMODULE module = ModuleFromAddress(target)) {
+                result.hooked = !IsSystemModule(module);
+                result.owner = result.hooked ? module : nullptr;
+                return result;
+            }
+            code = target;
+        }
+
+        result.hooked = true;
+        return result;
+    }
+
+    bool IsIgnorableHooker(const std::wstring& moduleFileName) {
+        static const wchar_t* const ignored[] = {
+            L"gameoverlayrenderer64.dll", L"gameoverlayrenderer.dll",
+            L"discordhook64.dll",
+            L"rtsshooks64.dll", L"rtsshooks.dll",
+        };
+
+        std::wstring lower = moduleFileName;
+        for (wchar_t& c : lower) c = static_cast<wchar_t>(towlower(c));
+        for (const wchar_t* name : ignored) {
+            if (lower == name) return true;
+        }
+        return false;
+    }
+
+    bool FindForeignCursorHook(std::string* hookerName) {
+        HMODULE user32 = GetModuleHandleW(L"user32.dll");
+        if (!user32) return false;
+
+        const HMODULE self = ModuleFromAddress(reinterpret_cast<const void*>(&InspectExport));
+
+        for (const char* name : { "SetCursorPos", "ClipCursor", "GetCursorPos" }) {
+            const ExportHook hook = InspectExport(user32, name);
+            if (!hook.hooked || (hook.owner && hook.owner == self)) continue;
+
+            std::string owner = "an unknown module";
+            if (hook.owner) {
+                wchar_t path[MAX_PATH]{};
+                if (GetModuleFileNameW(hook.owner, path, MAX_PATH)) {
+                    const wchar_t* file = wcsrchr(path, L'\\');
+                    file = file ? file + 1 : path;
+                    if (IsIgnorableHooker(file)) continue;
+
+                    char narrow[MAX_PATH]{};
+                    WideCharToMultiByte(CP_UTF8, 0, file, -1, narrow, sizeof(narrow), nullptr, nullptr);
+                    owner = narrow;
+                }
+            }
+
+            if (hookerName) *hookerName = std::string(name) + " is hooked by " + owner;
+            return true;
+        }
+        return false;
+    }
+}
+
+void GUI::DecideCursorMode() {
+    std::string hooker;
+    CursorMode mode;
+
+    if (FindForeignCursorHook(&hooker)) {
+        mode = CursorMode::External;
+        OutputDebugStringA(("[USM] Cursor: " + hooker + "; leaving cursor control to it.\n").c_str());
+    } else if (InstallCursorHooks()) {
+        mode = CursorMode::Own;
+        OutputDebugStringA("[USM] Cursor: no other cursor hooks found; using our own.\n");
+    } else {
+        mode = CursorMode::External;
+        OutputDebugStringA("[USM] Cursor: could not install cursor hooks; unblocking input only.\n");
+    }
+
+    cursorMode.store(mode);
+}
+
+void GUI::UpdateCursor(bool menuOpen) {
+    if (menuOpen && cursorMode.load() == CursorMode::Undecided) DecideCursorMode();
+
+    switch (cursorMode.load()) {
+    case CursorMode::Own:
+        SetCursorCaptured(menuOpen);
+        UpdateCursorConfinement();
+        break;
+    case CursorMode::External:
+        if (menuOpen) ReleaseCursorForMenu();
+        else RestoreCursorToGame();
+        break;
+    default:
+        break;
+    }
+}
+
+void GUI::InstallWindowHook(HWND window) {
+    if (!window || originalWndProc || !IsWindow(window)) return;
+    if (GetWindowLongPtrW(window, GWLP_WNDPROC) == reinterpret_cast<LONG_PTR>(&WndProcHook)) return;
+
+    originalWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&WndProcHook)));
+}
+
+// ---------------------------------------------------------------------------
+// Own cursor mode
+// ---------------------------------------------------------------------------
+bool GUI::IsGameCaller(const void* returnAddress) {
+    if (g_ExeInfo.image.empty()) return true;
+
+    const auto begin = reinterpret_cast<uintptr_t>(g_ExeInfo.image.data());
+    const auto end = begin + g_ExeInfo.image.size();
+    const auto address = reinterpret_cast<uintptr_t>(returnAddress);
+    return address >= begin && address < end;
+}
+
+BOOL WINAPI GUI::HookedSetCursorPos(int x, int y) {
+    if (IsGameCaller(_ReturnAddress())) {
+        lastGameSetCursorPosTick.store(GetTickCount64(), std::memory_order_relaxed);
+        bool captured;
+        {
+            std::lock_guard<std::mutex> lock(cursorMutex);
+            captured = cursorCaptured.load();
+            gameCursorPos = { x, y };
+            hasGameCursorPos = true;
+            if (captured) gameMovedCursorWhileCaptured = true;
+        }
+        if (captured) return TRUE;
+    }
+    return originalSetCursorPos(x, y);
+}
+
+BOOL WINAPI GUI::HookedGetCursorPos(LPPOINT point) {
+    if (point && cursorCaptured.load() && IsGameCaller(_ReturnAddress())) {
+        std::lock_guard<std::mutex> lock(cursorMutex);
+        if (hasGameCursorPos) {
+            *point = gameCursorPos;
+            return TRUE;
+        }
+    }
+    return originalGetCursorPos(point);
+}
+
+BOOL WINAPI GUI::HookedClipCursor(const RECT* rect) {
+    if (IsGameCaller(_ReturnAddress())) {
+        {
+            std::lock_guard<std::mutex> lock(cursorMutex);
+            if (rect) {
+                gameClipRect = *rect;
+                hasGameClipRect = true;
+            } else {
+                hasGameClipRect = false;
+            }
+        }
+        if (cursorCaptured.load()) return TRUE;
+    }
+    return originalClipCursor(rect);
+}
+
+UINT WINAPI GUI::HookedGetRawInputData(HRAWINPUT rawInput, UINT command, LPVOID data, PUINT size, UINT headerSize) {
+    const UINT result = originalGetRawInputData(rawInput, command, data, size, headerSize);
+
+    if (result != static_cast<UINT>(-1) && data && command == RID_INPUT &&
+        cursorCaptured.load() && IsGameCaller(_ReturnAddress())) {
+        auto* raw = static_cast<RAWINPUT*>(data);
+        if (raw->header.dwType == RIM_TYPEMOUSE && result >= offsetof(RAWINPUT, data.mouse) + sizeof(RAWMOUSE)) {
+            raw->data.mouse.lLastX = 0;
+            raw->data.mouse.lLastY = 0;
+            raw->data.mouse.usButtonFlags = 0;
+            raw->data.mouse.usButtonData = 0;
+        }
+    }
+    return result;
+}
+
+int WINAPI GUI::HookedShowCursor(BOOL show) {
+    if (cursorCaptured.load() && IsGameCaller(_ReturnAddress())) {
+        ServiceOsCursor();
+
+        std::lock_guard<std::mutex> lock(cursorMutex);
+        gameShowCount += show ? 1 : -1;
+        return gameShowCount;
+    }
+    return originalShowCursor(show);
+}
+
+HCURSOR WINAPI GUI::HookedSetCursor(HCURSOR cursor) {
+    if (IsGameCaller(_ReturnAddress())) {
+        {
+            std::lock_guard<std::mutex> lock(cursorMutex);
+            gameCursor = cursor;
+            hasGameCursor = true;
+        }
+        if (cursorCaptured.load()) return GetCursor();
+    }
+    return originalSetCursor(cursor);
+}
+
+bool GUI::InstallCursorHooks() {
+    if (cursorHooksInstalled) return true;
+
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (!user32) return false;
+
+    auto hookExport = [user32](const char* name, LPVOID detour, LPVOID* original) {
+        FARPROC target = GetProcAddress(user32, name);
+        if (!target) return false;
+        if (MH_CreateHook(reinterpret_cast<LPVOID>(target), detour, original) != MH_OK) return false;
+        return MH_EnableHook(reinterpret_cast<LPVOID>(target)) == MH_OK;
+    };
+
+    if (!hookExport("SetCursorPos", reinterpret_cast<LPVOID>(&HookedSetCursorPos), reinterpret_cast<LPVOID*>(&originalSetCursorPos))) return false;
+    if (!hookExport("ClipCursor", reinterpret_cast<LPVOID>(&HookedClipCursor), reinterpret_cast<LPVOID*>(&originalClipCursor))) return false;
+
+    if (!hookExport("GetCursorPos", reinterpret_cast<LPVOID>(&HookedGetCursorPos), reinterpret_cast<LPVOID*>(&originalGetCursorPos))) originalGetCursorPos = nullptr;
+    if (!hookExport("GetRawInputData", reinterpret_cast<LPVOID>(&HookedGetRawInputData), reinterpret_cast<LPVOID*>(&originalGetRawInputData))) originalGetRawInputData = nullptr;
+    if (!hookExport("ShowCursor", reinterpret_cast<LPVOID>(&HookedShowCursor), reinterpret_cast<LPVOID*>(&originalShowCursor))) originalShowCursor = nullptr;
+    if (!hookExport("SetCursor", reinterpret_cast<LPVOID>(&HookedSetCursor), reinterpret_cast<LPVOID*>(&originalSetCursor))) originalSetCursor = nullptr;
+
+    cursorHooksInstalled = true;
+    return true;
+}
+
+void GUI::PollMouseButtons() {
+    if (cursorMode.load() != CursorMode::Own || !cursorCaptured.load() || !ProcessHasForeground()) return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    const bool swapped = GetSystemMetrics(SM_SWAPBUTTON) != 0;
+    io.AddMouseButtonEvent(0, (GetAsyncKeyState(swapped ? VK_RBUTTON : VK_LBUTTON) & 0x8000) != 0);
+    io.AddMouseButtonEvent(1, (GetAsyncKeyState(swapped ? VK_LBUTTON : VK_RBUTTON) & 0x8000) != 0);
+    io.AddMouseButtonEvent(2, (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0);
+}
+
+void GUI::ServiceOsCursor() {
+    if (cursorMode.load() != CursorMode::Own) return;
+
+    const bool captured = cursorCaptured.load();
+    if (captured == (osCursorAdded > 0)) return;
+
+    std::lock_guard<std::mutex> lock(cursorMutex);
+
+    auto showCursor = [](BOOL show) { return originalShowCursor ? originalShowCursor(show) : ShowCursor(show); };
+    auto setCursor = [](HCURSOR cursor) { return originalSetCursor ? originalSetCursor(cursor) : SetCursor(cursor); };
+
+    if (captured) {
+        int count = showCursor(TRUE);
+        osCursorAdded = 1;
+        showCountAtCapture = count - 1;
+        gameShowCount = showCountAtCapture;
+
+        while (count < 0 && osCursorAdded < 32) {
+            count = showCursor(TRUE);
+            ++osCursorAdded;
+        }
+
+        if (!GetCursor()) setCursor(LoadCursorW(nullptr, IDC_ARROW));
+        return;
+    }
+
+    while (osCursorAdded > 0) {
+        showCursor(FALSE);
+        --osCursorAdded;
+    }
+
+    int drift = gameShowCount - showCountAtCapture;
+    while (drift > 0) { showCursor(TRUE); --drift; }
+    while (drift < 0) { showCursor(FALSE); ++drift; }
+
+    if (hasGameCursor) setCursor(gameCursor);
+}
+
+void GUI::UpdateCursorConfinement() {
+    if (!cursorCaptured.load()) return;
+
+    RECT rect{};
+    bool confine = false;
+    if (gameWindow && IsWindow(gameWindow) && GetClientRect(gameWindow, &rect)) {
+        POINT topLeft{ rect.left, rect.top };
+        POINT bottomRight{ rect.right, rect.bottom };
+        if (ClientToScreen(gameWindow, &topLeft) && ClientToScreen(gameWindow, &bottomRight)) {
+            rect = { topLeft.x, topLeft.y, bottomRight.x, bottomRight.y };
+            confine = rect.right > rect.left && rect.bottom > rect.top;
+        }
+    }
+
+    if (!confine) {
+        if (hasConfineRect) {
+            hasConfineRect = false;
+            originalClipCursor(nullptr);
+        }
+        return;
+    }
+
+    if (!hasConfineRect || !EqualRect(&rect, &confineRect)) {
+        confineRect = rect;
+        hasConfineRect = true;
+        originalClipCursor(&confineRect);
+    }
+}
+
+void GUI::SetCursorCaptured(bool captured) {
+    if (!cursorHooksInstalled) return;
+    if (cursorCaptured.load() == captured) return;
+
+    if (captured) {
+        {
+            std::lock_guard<std::mutex> lock(cursorMutex);
+            POINT current{};
+            if (originalGetCursorPos && originalGetCursorPos(&current)) {
+                gameCursorPos = current;
+                hasGameCursorPos = true;
+            }
+            gameMovedCursorWhileCaptured = false;
+            cursorCaptured.store(true);
+        }
+        hasConfineRect = false;
+        originalClipCursor(nullptr);
+
+        if (hasSavedMenuPos && gameWindow && IsWindow(gameWindow)) {
+            RECT client{};
+            POINT current{};
+            if (GetClientRect(gameWindow, &client) && client.right > client.left && client.bottom > client.top &&
+                originalGetCursorPos && originalGetCursorPos(&current)) {
+                POINT local = current;
+                ScreenToClient(gameWindow, &local);
+
+                const LONG centreX = (client.left + client.right) / 2;
+                const LONG centreY = (client.top + client.bottom) / 2;
+                const LONG tolerance = 8;
+                const bool atCentre = std::abs(local.x - centreX) <= tolerance && std::abs(local.y - centreY) <= tolerance;
+
+                bool gameHoldingCursor = atCentre;
+                {
+                    std::lock_guard<std::mutex> lock(cursorMutex);
+                    const ULONGLONG lastCall = lastGameSetCursorPosTick.load(std::memory_order_relaxed);
+                    if (lastCall != 0 && GetTickCount64() - lastCall <= 250) gameHoldingCursor = true;
+                    if (hasGameClipRect) {
+                        const LONG clipW = gameClipRect.right - gameClipRect.left;
+                        const LONG clipH = gameClipRect.bottom - gameClipRect.top;
+                        if (clipW < (client.right - client.left) / 2 && clipH < (client.bottom - client.top) / 2) gameHoldingCursor = true;
+                    }
+                }
+
+                if (gameHoldingCursor) {
+                    POINT target = savedMenuClientPos;
+                    target.x = (std::min)((std::max)(target.x, client.left), client.right - 1);
+                    target.y = (std::min)((std::max)(target.y, client.top), client.bottom - 1);
+                    if (ClientToScreen(gameWindow, &target)) originalSetCursorPos(target.x, target.y);
+                }
+            }
+        }
+    } else {
+        RECT clip{};
+        POINT pos{};
+        bool hasClip = false, hasPos = false;
+
+        POINT menuPos{};
+        const bool haveMenuPos = originalGetCursorPos && originalGetCursorPos(&menuPos);
+        {
+            std::lock_guard<std::mutex> lock(cursorMutex);
+            cursorCaptured.store(false);
+            clip = gameClipRect;
+            hasClip = hasGameClipRect;
+            pos = gameCursorPos;
+            hasPos = hasGameCursorPos && gameMovedCursorWhileCaptured;
+            if (haveMenuPos && gameWindow && IsWindow(gameWindow) && ScreenToClient(gameWindow, &menuPos)) {
+                savedMenuClientPos = menuPos;
+                hasSavedMenuPos = true;
+            }
+            gameMovedCursorWhileCaptured = false;
+        }
+
+        if (hasPos) originalSetCursorPos(pos.x, pos.y);
+        originalClipCursor(hasClip ? &clip : nullptr);
+        hasConfineRect = false;
+    }
+
+    if (gameWindow && IsWindow(gameWindow)) PostMessageW(gameWindow, WM_NULL, 0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// External cursor mode
+// ---------------------------------------------------------------------------
+bool GUI::IsExternalWndProc(WNDPROC proc) {
+    if (!proc) return false;
+
+    const HMODULE module = ModuleFromAddress(reinterpret_cast<const void*>(proc));
+    if (!module) return false;
+
+    const HMODULE selfModule = ModuleFromAddress(reinterpret_cast<const void*>(&GUI::WndProcHook));
+
+    return module != GetModuleHandleW(nullptr) && module != selfModule;
+}
+
+bool GUI::IsVirtualScreenRect(const RECT& rect) {
+    RECT virtualScreen{};
+    virtualScreen.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    virtualScreen.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    virtualScreen.right = virtualScreen.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    virtualScreen.bottom = virtualScreen.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+    return rect.left == virtualScreen.left &&
+        rect.top == virtualScreen.top &&
+        rect.right == virtualScreen.right &&
+        rect.bottom == virtualScreen.bottom;
+}
+
+void GUI::SetCursorVisible(bool visible) {
+    CURSORINFO cursorInfo{};
+    cursorInfo.cbSize = sizeof(cursorInfo);
+    if (!GetCursorInfo(&cursorInfo)) return;
+
+    const bool currentlyVisible = (cursorInfo.flags & CURSOR_SHOWING) != 0;
+    if (currentlyVisible == visible) return;
+
+    for (int i = 0; i < 32; ++i) {
+        ShowCursor(visible ? TRUE : FALSE);
+
+        CURSORINFO updated{};
+        updated.cbSize = sizeof(updated);
+        if (!GetCursorInfo(&updated)) break;
+
+        const bool nowVisible = (updated.flags & CURSOR_SHOWING) != 0;
+        if (nowVisible == visible) break;
+    }
+}
+
+void GUI::ForceCursorVisible() {
+    SetCursorVisible(true);
+    SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+}
+
+void GUI::ReleaseCursorForMenu() {
+    if (!gameWindow || !IsWindow(gameWindow)) return;
+
+    if (!cursorOverrideActive) {
+        savedCursorVisible = false;
+        CURSORINFO cursorInfo{};
+        cursorInfo.cbSize = sizeof(cursorInfo);
+        if (GetCursorInfo(&cursorInfo)) {
+            savedCursorVisible = (cursorInfo.flags & CURSOR_SHOWING) != 0;
+            savedCursorHandle = cursorInfo.hCursor;
+        } else {
+            savedCursorHandle = nullptr;
+        }
+
+        savedClipValid = GetClipCursor(&savedClipRect) != FALSE;
+        savedClipWasActive = savedClipValid && !IsVirtualScreenRect(savedClipRect);
+        savedCaptureWindow = GetCapture();
+        cursorOverrideActive = true;
+    }
+
+    ClipCursor(nullptr);
+    if (GetCapture()) ReleaseCapture();
+    ForceCursorVisible();
+}
+
+void GUI::RestoreCursorToGame() {
+    if (!cursorOverrideActive) return;
+
+    if (savedClipValid && savedClipWasActive) {
+        ClipCursor(&savedClipRect);
+    } else {
+        ClipCursor(nullptr);
+    }
+
+    if (savedCaptureWindow && IsWindow(savedCaptureWindow) && GetForegroundWindow() == savedCaptureWindow) {
+        SetCapture(savedCaptureWindow);
+    }
+
+    SetCursorVisible(savedCursorVisible);
+    SetCursor(savedCursorHandle);
+
+    savedCursorVisible = false;
+    savedCursorHandle = nullptr;
+    savedClipValid = false;
+    savedClipWasActive = false;
+    savedClipRect = {};
+    savedCaptureWindow = nullptr;
+    cursorOverrideActive = false;
+}
+
 void GUI::OnPresent(IDXGISwapChain3* swapChain, UINT flags) {
-    if (!Settings::EnableGUI || disabled || !swapChain) return;
+    if (!Settings::EnableGUI || disabled || !swapChain) {
+        UpdateCursor(false);
+        return;
+    }
 
     if (flags & DXGI_PRESENT_TEST) return;
 
     std::lock_guard<std::recursive_mutex> lock(stateMutex);
 
     PollToggleKey();
-    if (!Visible) return;
+    if (!Visible) {
+        UpdateCursor(false);
+        return;
+    }
 
     if (initialised && swapChain != activeSwapChain) {
         DXGI_SWAP_CHAIN_DESC desc{};
@@ -927,10 +1571,16 @@ void GUI::OnPresent(IDXGISwapChain3* swapChain, UINT flags) {
 
     if (!initialised) {
         InitialiseImGui(swapChain);
-        if (!initialised) return;
+        if (!initialised) {
+            UpdateCursor(false);
+            return;
+        }
     }
 
+    UpdateCursor(true);
     RenderFrame(swapChain);
+
+    if (!Visible) UpdateCursor(false);
 }
 
 bool GUI::GuardedOnPresent(IDXGISwapChain3* swapChain, UINT flags) {
@@ -943,6 +1593,7 @@ HRESULT STDMETHODCALLTYPE GUI::HookedPresent(IDXGISwapChain3* swapChain, UINT sy
     if (scope.owner && !GuardedOnPresent(swapChain, flags)) {
         disabled = true;
         initialised = false;
+        UpdateCursor(false);
     }
 
     return originalPresent(swapChain, syncInterval, flags);
@@ -953,6 +1604,7 @@ HRESULT STDMETHODCALLTYPE GUI::HookedPresent1(IDXGISwapChain3* swapChain, UINT s
     if (scope.owner && !GuardedOnPresent(swapChain, flags)) {
         disabled = true;
         initialised = false;
+        UpdateCursor(false);
     }
 
     return originalPresent1(swapChain, syncInterval, flags, params);
