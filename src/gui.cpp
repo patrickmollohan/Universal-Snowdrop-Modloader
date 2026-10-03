@@ -262,8 +262,12 @@ void GUI::RegisterSwapChain(IUnknown* queueOrDevice, IUnknown* swapChain, HWND w
 }
 
 bool GUI::GuardedRegisterSwapChain(IUnknown* queueOrDevice, IUnknown* swapChain, HWND window) {
-    RegisterSwapChain(queueOrDevice, swapChain, window);
-    return true;
+    __try {
+        RegisterSwapChain(queueOrDevice, swapChain, window);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
 }
 
 ID3D12CommandQueue* GUI::FindQueueFor(IUnknown* swapChain) {
@@ -1584,8 +1588,12 @@ void GUI::OnPresent(IDXGISwapChain3* swapChain, UINT flags) {
 }
 
 bool GUI::GuardedOnPresent(IDXGISwapChain3* swapChain, UINT flags) {
-    OnPresent(swapChain, flags);
-    return true;
+    __try {
+        OnPresent(swapChain, flags);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
 }
 
 HRESULT STDMETHODCALLTYPE GUI::HookedPresent(IDXGISwapChain3* swapChain, UINT syncInterval, UINT flags) {
@@ -1614,7 +1622,7 @@ HRESULT STDMETHODCALLTYPE GUI::HookedCreateSwapChain(IDXGIFactory* factory, IUnk
     const HRESULT result = originalCreateSwapChain(factory, device, desc, swapChain);
 
     if (SUCCEEDED(result) && swapChain && *swapChain) {
-        GuardedRegisterSwapChain(device, *swapChain, desc ? desc->OutputWindow : nullptr);
+        if (!GuardedRegisterSwapChain(device, *swapChain, desc ? desc->OutputWindow : nullptr)) disabled = true;
     }
     return result;
 }
@@ -1623,7 +1631,7 @@ HRESULT STDMETHODCALLTYPE GUI::HookedCreateSwapChainForHwnd(IDXGIFactory2* facto
     const HRESULT result = originalCreateSwapChainForHwnd(factory, device, hwnd, desc, fullscreenDesc, restrictToOutput, swapChain);
 
     if (SUCCEEDED(result) && swapChain && *swapChain) {
-        GuardedRegisterSwapChain(device, *swapChain, hwnd);
+        if (!GuardedRegisterSwapChain(device, *swapChain, hwnd)) disabled = true;
     }
     return result;
 }

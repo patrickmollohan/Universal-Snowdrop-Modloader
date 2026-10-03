@@ -45,9 +45,9 @@ namespace {
             "AlwaysFrameGen",
             "Enable frame generation everywhere else",
             "Allows frame generation in all remaining places (lockpicking, sabacc, etc).",
-            "Allows the use of frame generation everywhere else, i.e. lockpicking, sabacc etc (true/false, default: false)",
+            "Allows the use of frame generation everywhere else, i.e. lockpicking, sabacc etc (true/false, default: true)",
             "74 ?? 48 8B ?? E8 ?? ?? ?? ?? 84 ?? 75 ?? ?? 01 EB ?? 32 ?? 88 ?? ?? ?? ?? ?? 40 ?? ?? ?? ?? ?? ??",
-            0, { 0x90, 0x90 }, false
+            0, { 0x90, 0x90 }, true
         },
         {
             "CutsceneLetterboxing",

@@ -36,7 +36,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
         CreateThread(nullptr, 0, Initialise, nullptr, 0, nullptr);
         break;
     case DLL_PROCESS_DETACH:
-        Cleanup();
+        if (!lpReserved) Cleanup();
         break;
     }
     return TRUE;
